@@ -297,7 +297,7 @@ void database:: process_gravity_emission( const uint32_t& block_num )
   
    uint32_t current_activity = _activity_period.get_activity( );
 
-   auto current_emission = _emission.calculate( core_dd.current_supply.value, _activity_period );
+   auto current_emission = _emission.calculate( get_global_properties().parameters.current_emission_volume, _activity_period );
    _emission_state = _emission.get_emission_state();
    
    if( current_activity > _last_peak_activity )
