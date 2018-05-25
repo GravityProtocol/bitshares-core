@@ -106,6 +106,7 @@ namespace graphene { namespace chain {
     */
    typedef static_variant<void_t>      future_extensions;
 
+
    /**
     *  A flat_set is used to make sure that only one extension of
     *  each type is added and that they are added in order.  
@@ -114,6 +115,7 @@ namespace graphene { namespace chain {
     *  content.
     */
    typedef flat_set<future_extensions> extensions_type;
+
 
    ///@}
 

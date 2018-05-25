@@ -30,26 +30,32 @@
 #include <graphene/chain/block_database.hpp>
 #include <graphene/chain/genesis_state.hpp>
 #include <graphene/chain/evaluator.hpp>
-
+  
 #include <graphene/db/object_database.hpp>
 #include <graphene/db/object.hpp>
 #include <graphene/db/simple_index.hpp>
 #include <fc/signals.hpp>
-
+  
 #include <graphene/chain/protocol/protocol.hpp>
-
+  
 #include <fc/log/logger.hpp>
+  
+#include <graphene/singularity/activity_index_calculator.hpp>
+#include <graphene/singularity/gravity_index_calculator.hpp>
 
+#include <graphene/singularity/emission.hpp>
+  
 #include <map>
-
+#include <boost/functional/hash.hpp>
+  
 namespace graphene { namespace chain {
    using graphene::db::abstract_object;
    using graphene::db::object;
    class op_evaluator;
    class transaction_evaluation_state;
-
+  
    struct budget_record;
-
+  
    /**
     *   @class database
     *   @brief tracks the blockchain state in an extensible manner
@@ -58,10 +64,10 @@ namespace graphene { namespace chain {
    {
       public:
          //////////////////// db_management.cpp ////////////////////
-
+  
          database();
          ~database();
-
+  
          enum validation_steps
          {
             skip_nothing                = 0,
@@ -78,7 +84,7 @@ namespace graphene { namespace chain {
             skip_witness_schedule_check = 1 << 10,  ///< used while reindexing
             skip_validate               = 1 << 11 ///< used prior to checkpoint, skips validate() call on transaction
          };
-
+  
          /**
           * @brief Open a database, creating a new one if necessary
           *
@@ -95,7 +101,7 @@ namespace graphene { namespace chain {
              const fc::path& data_dir,
              std::function<genesis_state_type()> genesis_loader,
              const std::string& db_version );
-
+  
          /**
           * @brief Rebuild object graph from block history and open detabase
           *
@@ -103,7 +109,7 @@ namespace graphene { namespace chain {
           * replaying blockchain history. When this method exits successfully, the database will be open.
           */
          void reindex(fc::path data_dir);
-
+  
          /**
           * @brief wipe Delete database from disk, and potentially the raw chain as well.
           * @param include_blocks If true, delete the raw chain as well as the database.
@@ -112,9 +118,9 @@ namespace graphene { namespace chain {
           */
          void wipe(const fc::path& data_dir, bool include_blocks);
          void close(bool rewind = true);
-
+  
          //////////////////// db_block.cpp ////////////////////
-
+  
          /**
           *  @return true if the block is in our fork DB or saved to disk as
           *  part of the official chain, otherwise return false
@@ -126,25 +132,25 @@ namespace graphene { namespace chain {
          optional<signed_block>     fetch_block_by_number( uint32_t num )const;
          const signed_transaction&  get_recent_transaction( const transaction_id_type& trx_id )const;
          std::vector<block_id_type> get_block_ids_on_fork(block_id_type head_of_fork) const;
-
+  
          /**
           *  Calculate the percent of block production slots that were missed in the
           *  past 128 blocks, not including the current block.
           */
          uint32_t witness_participation_rate()const;
-
+  
          void                              add_checkpoints( const flat_map<uint32_t,block_id_type>& checkpts );
          const flat_map<uint32_t,block_id_type> get_checkpoints()const { return _checkpoints; }
          bool before_last_checkpoint()const;
-
+  
          bool push_block( const signed_block& b, uint32_t skip = skip_nothing );
          processed_transaction push_transaction( const signed_transaction& trx, uint32_t skip = skip_nothing );
          bool _push_block( const signed_block& b );
          processed_transaction _push_transaction( const signed_transaction& trx );
-
+  
          ///@throws fc::exception if the proposed transaction fails to apply.
          processed_transaction push_proposal( const proposal_object& proposal );
-
+  
          signed_block generate_block(
             const fc::time_point_sec when,
             witness_id_type witness_id,
@@ -156,10 +162,10 @@ namespace graphene { namespace chain {
             witness_id_type witness_id,
             const fc::ecc::private_key& block_signing_private_key
             );
-
+  
          void pop_block();
          void clear_pending();
-
+  
          /**
           *  This method is used to track appied operations during the evaluation of a block, these
           *  operations should include any operation actually included in a transaction as well
@@ -172,9 +178,9 @@ namespace graphene { namespace chain {
          uint32_t  push_applied_operation( const operation& op );
          void      set_applied_operation_result( uint32_t op_id, const operation_result& r );
          const vector<optional< operation_history_object > >& get_applied_operations()const;
-
+  
          string to_pretty_string( const asset& a )const;
-
+  
          /**
           *  This signal is emitted after all operations and virtual operation for a
           *  block have been applied but before the get_applied_operations() are cleared.
@@ -184,32 +190,32 @@ namespace graphene { namespace chain {
           *  released.
           */
          fc::signal<void(const signed_block&)>           applied_block;
-
+  
          /**
           * This signal is emitted any time a new transaction is added to the pending
           * block state.
           */
          fc::signal<void(const signed_transaction&)>     on_pending_transaction;
-
+  
          /**
           *  Emitted After a block has been applied and committed.  The callback
           *  should not yield and should execute quickly.
           */
          fc::signal<void(const vector<object_id_type>&, const flat_set<account_id_type>&)> new_objects;
-
+  
          /**
           *  Emitted After a block has been applied and committed.  The callback
           *  should not yield and should execute quickly.
           */
          fc::signal<void(const vector<object_id_type>&, const flat_set<account_id_type>&)> changed_objects;
-
+  
          /** this signal is emitted any time an object is removed and contains a
           * pointer to the last value of every object that was removed.
           */
          fc::signal<void(const vector<object_id_type>&, const vector<const object*>&, const flat_set<account_id_type>&)>  removed_objects;
-
+  
          //////////////////// db_witness_schedule.cpp ////////////////////
-
+  
          /**
           * @brief Get the witness scheduled for block production in a slot.
           *
@@ -225,7 +231,7 @@ namespace graphene { namespace chain {
           * Passing slot_num == 0 returns GRAPHENE_NULL_WITNESS
           */
          witness_id_type get_scheduled_witness(uint32_t slot_num)const;
-
+  
          /**
           * Get the time at which the given slot occurs.
           *
@@ -235,7 +241,7 @@ namespace graphene { namespace chain {
           * block-interval-aligned time greater than head_block_time().
           */
          fc::time_point_sec get_slot_time(uint32_t slot_num)const;
-
+  
          /**
           * Get the last slot which occurs AT or BEFORE the given time.
           *
@@ -245,11 +251,11 @@ namespace graphene { namespace chain {
           * If no such N exists, return 0.
           */
          uint32_t get_slot_at_time(fc::time_point_sec when)const;
-
+  
          void update_witness_schedule();
-
+  
          //////////////////// db_getter.cpp ////////////////////
-
+  
          const chain_id_type&                   get_chain_id()const;
          const asset_object&                    get_core_asset()const;
          const chain_property_object&           get_chain_properties()const;
@@ -257,34 +263,34 @@ namespace graphene { namespace chain {
          const dynamic_global_property_object&  get_dynamic_global_properties()const;
          const node_property_object&            get_node_properties()const;
          const fee_schedule&                    current_fee_schedule()const;
-
+  
          time_point_sec   head_block_time()const;
          uint32_t         head_block_num()const;
          block_id_type    head_block_id()const;
          witness_id_type  head_block_witness()const;
-
+  
          decltype( chain_parameters::block_interval ) block_interval( )const;
-
+  
          node_property_object& node_properties();
-
-
+  
+  
          uint32_t last_non_undoable_block_num() const;
          //////////////////// db_init.cpp ////////////////////
-
+  
          void initialize_evaluators();
          /// Reset the object graph in-memory
          void initialize_indexes();
          void init_genesis(const genesis_state_type& genesis_state = genesis_state_type());
-
+  
          template<typename EvaluatorType>
          void register_evaluator()
          {
             _operation_evaluators[
                operation::tag<typename EvaluatorType::operation_type>::value].reset( new op_evaluator_impl<EvaluatorType>() );
          }
-
+  
          //////////////////// db_balance.cpp ////////////////////
-
+  
          /**
           * @brief Retrieve a particular account's balance in a given asset
           * @param owner Account whose balance should be retrieved
@@ -294,14 +300,14 @@ namespace graphene { namespace chain {
          asset get_balance(account_id_type owner, asset_id_type asset_id)const;
          /// This is an overloaded method.
          asset get_balance(const account_object& owner, const asset_object& asset_obj)const;
-
+  
          /**
           * @brief Adjust a particular account's balance in a given asset by a delta
           * @param account ID of account whose balance should be adjusted
           * @param delta Asset ID and amount to adjust balance by
           */
          void adjust_balance(account_id_type account, asset delta);
-
+  
          /**
           * @brief Helper to make lazy deposit to CDD VBO.
           *
@@ -321,20 +327,20 @@ namespace graphene { namespace chain {
             uint32_t req_vesting_seconds,
             account_id_type req_owner,
             bool require_vesting );
-
+  
          // helper to handle cashback rewards
          void deposit_cashback(const account_object& acct, share_type amount, bool require_vesting = true);
          // helper to handle witness pay
          void deposit_witness_pay(const witness_object& wit, share_type amount);
-
+  
          //////////////////// db_debug.cpp ////////////////////
-
+  
          void debug_dump();
          void apply_debug_updates();
          void debug_update( const fc::variant_object& update );
-
+  
          //////////////////// db_market.cpp ////////////////////
-
+  
          /// @{ @group Market Helpers
          void globally_settle_asset( const asset_object& bitasset, const price& settle_price );
          void cancel_order(const force_settlement_object& order, bool create_virtual_op = true);
@@ -342,7 +348,7 @@ namespace graphene { namespace chain {
          void revive_bitasset( const asset_object& bitasset );
          void cancel_bid(const collateral_bid_object& bid, bool create_virtual_op = true);
          void execute_bid( const collateral_bid_object& bid, share_type debt_covered, share_type collateral_from_fund, const price_feed& current_feed );
-
+  
          /**
           * @brief Process a new limit order through the markets
           * @param order The new order to process
@@ -352,7 +358,7 @@ namespace graphene { namespace chain {
           * already on the books.
           */
          bool apply_order(const limit_order_object& new_order_object, bool allow_black_swan = true);
-
+  
          /**
           * Matches the two orders,
           *
@@ -373,7 +379,7 @@ namespace graphene { namespace chain {
                    const price& match_price,
                    asset max_settlement);
          ///@}
-
+  
          /**
           * @return true if the order was completely filled and thus freed.
           */
@@ -383,28 +389,28 @@ namespace graphene { namespace chain {
                           const price& fill_price, const bool is_maker );
          bool fill_order( const force_settlement_object& settle, const asset& pays, const asset& receives,
                           const price& fill_price, const bool is_maker );
-
+  
          bool check_call_orders( const asset_object& mia, bool enable_black_swan = true, bool for_new_limit_order = false );
-
+  
          // helpers to fill_order
          void pay_order( const account_object& receiver, const asset& receives, const asset& pays );
-
+  
          asset calculate_market_fee(const asset_object& recv_asset, const asset& trade_amount);
          asset pay_market_fees( const asset_object& recv_asset, const asset& receives );
-
-
+  
+  
          ///@}
          /**
           *  This method validates transactions without adding it to the pending state.
           *  @return true if the transaction would validate
           */
          processed_transaction validate_transaction( const signed_transaction& trx );
-
-
+  
+  
          /** when popping a block, the transactions that were removed get cached here so they
           * can be reapplied at the proper time */
          std::deque< signed_transaction >       _popped_tx;
-
+  
          /**
           * @}
           */
@@ -412,17 +418,21 @@ namespace graphene { namespace chain {
          //Mark pop_undo() as protected -- we do not want outside calling pop_undo(); it should call pop_block() instead
          void pop_undo() { object_database::pop_undo(); }
          void notify_changed_objects();
-
+  
       private:
          optional<undo_database::session>       _pending_tx_session;
          vector< unique_ptr<op_evaluator> >     _operation_evaluators;
-
+  
          template<class Index>
          vector<std::reference_wrapper<const typename Index::object_type>> sort_votable_objects(size_t count)const;
-
+  
          //////////////////// db_block.cpp ////////////////////
-
-       public:
+  
+       public:   
+         uint32_t                                   _last_activity_processing_time = 0;
+         uint32_t                                   _last_emission_processing_time = 0;
+         std::map<std::string, transfer_operation>  _pending_transactions;
+         std::map<std::string, bool>                _processed_transactions;
          // these were formerly private, but they have a fairly well-defined API, so let's make them public
          void                  apply_block( const signed_block& next_block, uint32_t skip = skip_nothing );
          processed_transaction apply_transaction( const signed_transaction& trx, uint32_t skip = skip_nothing );
@@ -431,14 +441,14 @@ namespace graphene { namespace chain {
          void                  _apply_block( const signed_block& next_block );
          processed_transaction _apply_transaction( const signed_transaction& trx );
          void                  _cancel_bids_and_revive_mpa( const asset_object& bitasset, const asset_bitasset_data_object& bad );
-
+  
          ///Steps involved in applying a new block
          ///@{
-
+  
          const witness_object& validate_block_header( uint32_t skip, const signed_block& next_block )const;
          const witness_object& _validate_block_header( const signed_block& next_block )const;
          void create_block_summary(const signed_block& next_block);
-
+  
          //////////////////// db_update.cpp ////////////////////
          void update_global_dynamic_data( const signed_block& b );
          void update_signing_witness(const witness_object& signing_witness, const signed_block& new_block);
@@ -450,12 +460,15 @@ namespace graphene { namespace chain {
          void update_maintenance_flag( bool new_maintenance_flag );
          void update_withdraw_permissions();
          bool check_for_blackswan( const asset_object& mia, bool enable_black_swan = true );
-
+         void process_credit_stories();
+         void process_gravity_emission( const uint32_t& block_num );
+         void process_poi( const uint32_t& block_num );
+  
          ///Steps performed only at maintenance intervals
          ///@{
-
+  
          //////////////////// db_maint.cpp ////////////////////
-
+  
          void initialize_budget_record( fc::time_point_sec now, budget_record& rec )const;
          void process_budget();
          void pay_workers( share_type& budget );
@@ -464,15 +477,16 @@ namespace graphene { namespace chain {
          void update_active_committee_members();
          void update_worker_votes();
          void process_bids( const asset_bitasset_data_object& bad );
-
+  
          template<class... Types>
          void perform_account_maintenance(std::tuple<Types...> helpers);
          ///@}
          ///@}
-
+  
          vector< processed_transaction >        _pending_tx;
          fork_database                          _fork_db;
-
+         bool                                   _fork = false;
+  
          /**
           *  Note: we can probably store blocks by block num rather than
           *  block id because after the undo window is past the block ID
@@ -483,7 +497,7 @@ namespace graphene { namespace chain {
           *  the fork tree relatively simple.
           */
          block_database   _block_id_to_block;
-
+  
          /**
           * Contains the set of ops that are in the process of being applied from
           * the current block.  It contains real and virtual operations in the
@@ -491,33 +505,46 @@ namespace graphene { namespace chain {
           * emited.
           */
          vector<optional<operation_history_object> >  _applied_ops;
-
+  
          uint32_t                          _current_block_num    = 0;
          uint16_t                          _current_trx_in_block = 0;
          uint16_t                          _current_op_in_trx    = 0;
          uint16_t                          _current_virtual_op   = 0;
-
+  
          vector<uint64_t>                  _vote_tally_buffer;
          vector<uint64_t>                  _witness_count_histogram_buffer;
          vector<uint64_t>                  _committee_count_histogram_buffer;
          uint64_t                          _total_voting_stake;
-
+  
          flat_map<uint32_t,block_id_type>  _checkpoints;
-
+  
          node_property_object              _node_property_object;
+  
+         double                            _transactions_volume = 0.0;
+         uint64_t                          _transactions_count = 0;
+         std::set<uint32_t>                _active_accounts;
+  
+         singularity::parameters_t                  _activity_parameters;
+         singularity::activity_index_calculator     _ic;
+  
+         uint32_t                                   _last_peak_activity = 0;
+         singularity::emission_parameters_t         _emission_parameters;
+         singularity::emission_calculator           _emission;
+         singularity::activity_period               _activity_period;
+         singularity::emission_state_t              _emission_state;
    };
-
+  
    namespace detail
    {
        template<int... Is>
        struct seq { };
-
+  
        template<int N, int... Is>
        struct gen_seq : gen_seq<N - 1, N - 1, Is...> { };
-
+  
        template<int... Is>
        struct gen_seq<0, Is...> : seq<Is...> { };
-
+  
        template<typename T, int... Is>
        void for_each(T&& t, const account_object& a, seq<Is...>)
        {
@@ -525,5 +552,5 @@ namespace graphene { namespace chain {
            (void)l;
        }
    }
-
+  
 } }

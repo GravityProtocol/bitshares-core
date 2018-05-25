@@ -158,3 +158,12 @@ string asset_object::amount_to_string(share_type amount) const
       result += "." + fc::to_string(scaled_precision.value + decimals).erase(0,1);
    return result;
 }
+
+ double asset_object::amount_to_real(share_type amount)const
+ {
+     std::stringstream ss( amount_to_string( amount ) );
+     double r;
+     ss >> r;
+     return r;
+ }
+

@@ -38,8 +38,34 @@
 #include <graphene/chain/worker_object.hpp>
 
 #include <algorithm>
+#include <iostream>
+#include <vector>
+#include <ctime>
+#include <string>
 
 namespace graphene { namespace chain {
+
+bool check_user_address( const std::string& name )
+{
+    if( name[0] != 'g' )
+        return false;
+
+    if( !std::all_of( name.begin() + 1, name.begin() + 5, ::isdigit ) )
+        return false;
+
+    if( ::isdigit( name[5] ) )
+        return false;
+
+    if( !std::all_of( name.begin() + 6, name.begin() + 10, ::isdigit ) )
+        return false;
+
+    if( ::isdigit( name[10] ) )
+        return false;
+
+    if( !std::all_of( name.begin() + 11, name.begin() + 15, ::isdigit ) )
+        return false;
+    return true;
+}
 
 void verify_authority_accounts( const database& db, const authority& a )
 {
@@ -150,13 +176,16 @@ void_result account_create_evaluator::do_evaluate( const account_create_operatio
       evaluate_buyback_account_options( d, *op.extensions.value.buyback_options );
    verify_account_votes( d, op.options );
 
+   if( op.registrar != GRAPHENE_TEMP_ACCOUNT )
+    FC_ASSERT( check_user_address( op.name ), "Account can be created only with correct pregenerated address" );
+
    auto& acnt_indx = d.get_index_type<account_index>();
    if( op.name.size() )
    {
       auto current_account_itr = acnt_indx.indices().get<by_name>().find( op.name );
       FC_ASSERT( current_account_itr == acnt_indx.indices().get<by_name>().end() );
    }
-
+   
    return void_result();
 } FC_CAPTURE_AND_RETHROW( (op) ) }
 
@@ -193,6 +222,7 @@ object_id_type account_create_evaluator::do_apply( const account_create_operatio
          obj.lifetime_referrer_fee_percentage = params.lifetime_referrer_percent_of_fee;
          obj.referrer_rewards_percentage = referrer_percent;
 
+         obj.premium_name     = o.name;
          obj.name             = o.name;
          obj.owner            = o.owner;
          obj.active           = o.active;
@@ -294,6 +324,13 @@ void_result account_update_evaluator::do_evaluate( const account_update_operatio
    if( o.new_options.valid() )
       verify_account_votes( d, *o.new_options );
 
+   auto& acnt_indx = d.get_index_type<account_index>();
+   if( o.premium_name )
+   {
+      auto current_account_itr = acnt_indx.indices().get<by_premium_name>().find( *(o.premium_name) );
+      FC_ASSERT( current_account_itr == acnt_indx.indices().get<by_premium_name>().end() );
+   }
+
    return void_result();
 } FC_CAPTURE_AND_RETHROW( (o) ) }
 
@@ -302,6 +339,12 @@ void_result account_update_evaluator::do_apply( const account_update_operation& 
    database& d = db();
    bool sa_before, sa_after;
    d.modify( *acnt, [&](account_object& a){
+      if( o.name )
+        a.name = *(o.name);
+
+    if( o.premium_name )
+        a.premium_name = *(o.premium_name);
+
       if( o.owner )
       {
          a.owner = *o.owner;

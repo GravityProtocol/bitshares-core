@@ -424,6 +424,13 @@ const asset_object& database_fixture::get_asset( const string& symbol )const
 
 const account_object& database_fixture::get_account( const string& name )const
 {
+   assert( name.size() == 0 );
+
+   const auto& premium_idx = db.get_index_type<account_index>().indices().get<by_premium_name>();
+   const auto premium_itr = premium_idx.find(name);
+   if( premium_itr != premium_idx.end() )
+    return *premium_itr;
+
    const auto& idx = db.get_index_type<account_index>().indices().get<by_name>();
    const auto itr = idx.find(name);
    assert( itr != idx.end() );

@@ -766,6 +766,25 @@ class wallet_api
                                   string memo,
                                   bool broadcast = false);
 
+      signed_transaction gravity_transfer(string from,
+                                  string to,
+                                  string fee_payer,
+                                  string amount,
+                                  string asset_symbol,
+                                  string memo,
+                                  bool broadcast = false);
+
+
+      gravity_emission_object list_gravity_emission( ) const;   
+
+      vector<gravity_transfer_object> get_my_gravity_transfers( const std::string& account ) const; 
+      
+      signed_transaction approve_gravity_transfer( string approver, string uuid, bool broadcast = false );
+      
+      signed_transaction reject_gravity_transfer( string approver, string uuid, bool broadcast = false );
+
+      std::string get_new_account_address( ) const;                                   
+
       /**
        *  This method works just like transfer, except it always broadcasts and
        *  returns the transaction ID along with the signed transaction.
@@ -1654,6 +1673,10 @@ FC_API( graphene::wallet::wallet_api,
         (list_accounts)
         (list_account_balances)
         (list_assets)
+        (list_gravity_emission)
+        (get_my_gravity_transfers)
+        (approve_gravity_transfer)
+        (reject_gravity_transfer)
         (import_key)
         (import_accounts)
         (import_account_keys)
@@ -1749,4 +1772,6 @@ FC_API( graphene::wallet::wallet_api,
         (blind_history)
         (receive_blind_transfer)
         (get_order_book)
+        (get_new_account_address)
+        (gravity_transfer)
       )

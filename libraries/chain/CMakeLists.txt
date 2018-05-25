@@ -7,6 +7,7 @@ add_dependencies( build_hardfork_hpp cat-parts )
 
 file(GLOB HEADERS "include/graphene/chain/*.hpp")
 file(GLOB PROTOCOL_HEADERS "include/graphene/chain/protocol/*.hpp")
+file(GLOB POI_HEADERS "include/graphene/singularity/*.hpp")
 
 if( GRAPHENE_DISABLE_UNITY_BUILD )
    set( GRAPHENE_DB_FILES
@@ -57,6 +58,7 @@ add_library( graphene_chain
              protocol/fee_schedule.cpp
              protocol/confidential.cpp
              protocol/vote.cpp
+             protocol/gravity.cpp
 
              genesis_state.cpp
              get_config.cpp
@@ -79,12 +81,15 @@ add_library( graphene_chain
              confidential_evaluator.cpp
              special_authority.cpp
              buyback.cpp
-
+	           gravity_evaluator.cpp
              account_object.cpp
              asset_object.cpp
              fba_object.cpp
              proposal_object.cpp
              vesting_balance_object.cpp
+             gravity_emission_object.cpp
+             gravity_transfer_object.cpp
+             gravity_activity_object.cpp
 
              block_database.cpp
 
@@ -92,13 +97,14 @@ add_library( graphene_chain
 
              ${HEADERS}
              ${PROTOCOL_HEADERS}
+	     ${POI_HEADERS}
              "${CMAKE_CURRENT_BINARY_DIR}/include/graphene/chain/hardfork.hpp"
            )
 
 add_dependencies( graphene_chain build_hardfork_hpp )
-target_link_libraries( graphene_chain fc graphene_db )
+target_link_libraries( graphene_chain fc graphene_db graphene_singularity )
 target_include_directories( graphene_chain
-                            PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_BINARY_DIR}/include" )
+                            PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_BINARY_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/../singularity/include" )
 
 if(MSVC)
   set_source_files_properties( db_init.cpp db_block.cpp database.cpp block_database.cpp PROPERTIES COMPILE_FLAGS "/bigobj" )
@@ -113,3 +119,4 @@ INSTALL( TARGETS
 )
 INSTALL( FILES ${HEADERS} DESTINATION "include/graphene/chain" )
 INSTALL( FILES ${PROTOCOL_HEADERS} DESTINATION "include/graphene/chain/protocol" )
+

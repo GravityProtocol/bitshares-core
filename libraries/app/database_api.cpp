@@ -59,6 +59,13 @@ class database_api_impl : public std::enable_shared_from_this<database_api_impl>
       // Objects
       fc::variants get_objects(const vector<object_id_type>& ids)const;
 
+      std::string get_new_account_address( ) const;
+
+      vector<gravity_transfer_object> get_my_gravity_transfers( const std::string& account ) const;
+
+      gravity_emission_object list_gravity_emission( ) const;
+
+
       // Subscriptions
       void set_subscribe_callback( std::function<void(const variant&)> cb, bool notify_remove_create );
       void set_pending_transaction_callback( std::function<void(const variant&)> cb );
@@ -949,6 +956,83 @@ vector<asset_object> database_api::list_assets(const string& lower_bound_symbol,
    return my->list_assets( lower_bound_symbol, limit );
 }
 
+gravity_emission_object database_api::list_gravity_emission( ) const
+{
+    return my->list_gravity_emission( );
+}
+
+std::string database_api::get_new_account_address( ) const
+{
+    return my->get_new_account_address( );
+}
+
+vector<gravity_transfer_object> database_api::get_my_gravity_transfers( const std::string& account ) const
+{
+    return my->get_my_gravity_transfers( account );
+}
+
+inline uint64_t GetTimeStampCounter( ) 
+{
+	register uint64_t x asm( "eax" );
+	asm volatile( ".byte 15, 49" : : : "eax", "edx" );
+	return x;
+};
+
+template<typename Type>
+inline Type GetRandom( const Type& tFrom, const Type& tTo )
+{
+    std::srand( ( unsigned int )GetTimeStampCounter( ) );
+        return( std::rand( ) % ( tTo - tFrom + 1 ) ) + tFrom;
+};
+
+std::string get_decimal_part()
+{
+    static std::string range = {"0123456789"};
+    std::vector<char> v(4);
+    for( unsigned int i = 0; i < v.size(); i++ )
+        v[i] = range[GetRandom<uint32_t>( 0, range.size( ) - 1 )];
+    return std::string(v.rbegin(), v.rend());
+}
+
+unsigned char get_letter()
+{
+    static std::string range = {"abcdefghijklmnopqrstuvwxyz"};
+    return range[GetRandom<uint32_t>( 0, range.size( ) - 1 )];
+}
+std::string database_api_impl::get_new_account_address( ) const
+{
+    std::stringstream address;
+    address << 'g';
+    address << get_decimal_part();
+    address << get_letter();
+    address << get_decimal_part();
+    address << get_letter();
+    address << get_decimal_part();
+    return address.str();
+}    
+
+vector<gravity_transfer_object> database_api_impl::get_my_gravity_transfers( const std::string& account ) const
+{
+    auto rec = lookup_account_names({account}).front();
+    FC_ASSERT( rec && rec->name == account );
+
+    vector<gravity_transfer_object> result;
+    const auto& range = _db.get_index_type<gravity_transfer_index>().indices().get<by_receiver>();
+    for( auto it = range.begin(); it != range.end(); it++ )
+    {
+        if( ( *it ).to == rec->id )
+            result.push_back( *it );
+
+    }
+    return result;
+}                                                       
+
+gravity_emission_object database_api_impl::list_gravity_emission() const
+{
+   const auto& e = _db.get_index_type<gravity_emission_index>().indices().get<by_max_emission>();
+   return *e.begin();
+}
+                                       
 vector<asset_object> database_api_impl::list_assets(const string& lower_bound_symbol, uint32_t limit)const
 {
    FC_ASSERT( limit <= 100 );

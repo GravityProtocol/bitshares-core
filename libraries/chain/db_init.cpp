@@ -46,6 +46,9 @@
 #include <graphene/chain/witness_object.hpp>
 #include <graphene/chain/witness_schedule_object.hpp>
 #include <graphene/chain/worker_object.hpp>
+#include <graphene/chain/gravity_emission_object.hpp>
+#include <graphene/chain/gravity_transfer_object.hpp>
+#include <graphene/chain/gravity_activity_object.hpp>
 
 #include <graphene/chain/account_evaluator.hpp>
 #include <graphene/chain/asset_evaluator.hpp>
@@ -57,6 +60,7 @@
 #include <graphene/chain/market_evaluator.hpp>
 #include <graphene/chain/proposal_evaluator.hpp>
 #include <graphene/chain/transfer_evaluator.hpp>
+#include <graphene/chain/gravity_evaluator.hpp>
 #include <graphene/chain/vesting_balance_evaluator.hpp>
 #include <graphene/chain/withdraw_permission_evaluator.hpp>
 #include <graphene/chain/witness_evaluator.hpp>
@@ -83,6 +87,15 @@ namespace graphene { namespace chain {
 
 const uint8_t account_object::space_id;
 const uint8_t account_object::type_id;
+
+const uint8_t gravity_emission_object::space_id;
+const uint8_t gravity_emission_object::type_id;
+
+const uint8_t gravity_activity_object::space_id;
+const uint8_t gravity_activity_object::type_id;
+
+const uint8_t gravity_transfer_object::space_id;
+const uint8_t gravity_transfer_object::type_id;
 
 const uint8_t asset_object::space_id;
 const uint8_t asset_object::type_id;
@@ -171,7 +184,10 @@ void database::initialize_evaluators()
    register_evaluator<transfer_to_blind_evaluator>();
    register_evaluator<transfer_from_blind_evaluator>();
    register_evaluator<blind_transfer_evaluator>();
-   register_evaluator<asset_claim_fees_evaluator>();
+   register_evaluator<asset_claim_fees_evaluator>();  
+   register_evaluator<gravity_transfer_evaluator>();
+   register_evaluator<gravity_transfer_approve_evaluator>();
+   register_evaluator<gravity_transfer_reject_evaluator>();
 }
 
 void database::initialize_indexes()
@@ -182,8 +198,11 @@ void database::initialize_indexes()
    //Protocol object indexes
    add_index< primary_index<asset_index> >();
    add_index< primary_index<force_settlement_index> >();
+   add_index< primary_index<gravity_emission_index> >();
+   add_index< primary_index<gravity_transfer_index> >();
+   add_index< primary_index<gravity_activity_index> >();
 
-   auto acnt_index = add_index< primary_index<account_index> >();
+   auto acnt_index = add_index< primary_index<account_index> >();   
    acnt_index->add_secondary_index<account_member_index>();
    acnt_index->add_secondary_index<account_referrer_index>();
 
@@ -256,11 +275,13 @@ void database::init_genesis(const genesis_state_type& genesis_state)
          n.owner.weight_threshold = 1;
          n.active.weight_threshold = 1;
          n.name = "committee-account";
+         n.premium_name = "committee-account";
          n.statistics = create<account_statistics_object>( [&](account_statistics_object& s){ s.owner = n.id; }).id;
       });
    FC_ASSERT(committee_account.get_id() == GRAPHENE_COMMITTEE_ACCOUNT);
    FC_ASSERT(create<account_object>([this](account_object& a) {
        a.name = "witness-account";
+       a.premium_name = "witness-account";
        a.statistics = create<account_statistics_object>([&](account_statistics_object& s){s.owner = a.id;}).id;
        a.owner.weight_threshold = 1;
        a.active.weight_threshold = 1;
@@ -271,6 +292,7 @@ void database::init_genesis(const genesis_state_type& genesis_state)
    }).get_id() == GRAPHENE_WITNESS_ACCOUNT);
    FC_ASSERT(create<account_object>([this](account_object& a) {
        a.name = "relaxed-committee-account";
+       a.premium_name = "relaxed-committee-account";       
        a.statistics = create<account_statistics_object>([&](account_statistics_object& s){s.owner = a.id;}).id;
        a.owner.weight_threshold = 1;
        a.active.weight_threshold = 1;
@@ -281,6 +303,7 @@ void database::init_genesis(const genesis_state_type& genesis_state)
    }).get_id() == GRAPHENE_RELAXED_COMMITTEE_ACCOUNT);
    FC_ASSERT(create<account_object>([this](account_object& a) {
        a.name = "null-account";
+       a.premium_name = "null-account";        
        a.statistics = create<account_statistics_object>([&](account_statistics_object& s){s.owner = a.id;}).id;
        a.owner.weight_threshold = 1;
        a.active.weight_threshold = 1;
@@ -291,6 +314,7 @@ void database::init_genesis(const genesis_state_type& genesis_state)
    }).get_id() == GRAPHENE_NULL_ACCOUNT);
    FC_ASSERT(create<account_object>([this](account_object& a) {
        a.name = "temp-account";
+       a.premium_name = "temp-account";               
        a.statistics = create<account_statistics_object>([&](account_statistics_object& s){s.owner = a.id;}).id;
        a.owner.weight_threshold = 0;
        a.active.weight_threshold = 0;
@@ -301,6 +325,7 @@ void database::init_genesis(const genesis_state_type& genesis_state)
    }).get_id() == GRAPHENE_TEMP_ACCOUNT);
    FC_ASSERT(create<account_object>([this](account_object& a) {
        a.name = "proxy-to-self";
+       a.premium_name = "proxy-to-self";        
        a.statistics = create<account_statistics_object>([&](account_statistics_object& s){s.owner = a.id;}).id;
        a.owner.weight_threshold = 1;
        a.active.weight_threshold = 1;
@@ -318,6 +343,7 @@ void database::init_genesis(const genesis_state_type& genesis_state)
          break;
       const account_object& acct = create<account_object>([&](account_object& a) {
           a.name = "special-account-" + std::to_string(id);
+          a.premium_name = "special-account-" + std::to_string(id);          
           a.statistics = create<account_statistics_object>([&](account_statistics_object& s){s.owner = a.id;}).id;
           a.owner.weight_threshold = 1;
           a.active.weight_threshold = 1;
@@ -329,6 +355,12 @@ void database::init_genesis(const genesis_state_type& genesis_state)
       FC_ASSERT( acct.get_id() == account_id_type(id) );
       remove( acct );
    }
+
+   // Create gravity emission
+   const auto& gravity_emission = create<gravity_emission_object>( [&](gravity_emission_object& n) 
+   {
+         n._max_emission_volume = 0.0;
+   });
 
    // Create core asset
    const asset_dynamic_data_object& dyn_asset =

@@ -45,6 +45,9 @@
 #include <graphene/chain/vote_count.hpp>
 #include <graphene/chain/witness_object.hpp>
 #include <graphene/chain/worker_object.hpp>
+#include <graphene/chain/gravity_emission_object.hpp>
+#include <graphene/chain/gravity_transfer_object.hpp>
+#include <graphene/chain/gravity_activity_object.hpp>
 
 namespace graphene { namespace chain {
 
@@ -222,9 +225,17 @@ void database::update_active_witnesses()
       }
       else
       {
+         const asset_object& core = asset_id_type(0)(*this);
+         const asset_dynamic_data_object& core_dd = core.dynamic_asset_data_id(*this);  
+
          vote_counter vc;
+
          for( const witness_object& wit : wits )
-            vc.add( wit.witness_account, _vote_tally_buffer[wit.vote_id] );
+            vc.add( wit.witness_account, 
+            _vote_tally_buffer[wit.vote_id], 
+            a.activity_index, 
+            gpo.parameters.activity_weight, 
+            core_dd.current_supply.value );
          vc.finish( a.active );
       }
    } );
@@ -320,9 +331,17 @@ void database::update_active_committee_members()
          }
          else
          {
+            const asset_object& core = asset_id_type(0)(*this);
+            const asset_dynamic_data_object& core_dd = core.dynamic_asset_data_id(*this);  
+  
             vote_counter vc;
+
             for( const committee_member_object& cm : committee_members )
-               vc.add( cm.committee_member_account, _vote_tally_buffer[cm.vote_id] );
+               vc.add( cm.committee_member_account, 
+               _vote_tally_buffer[cm.vote_id],
+               a.activity_index,
+               get_global_properties().parameters.activity_weight, 
+               core_dd.current_supply.value );
             vc.finish( a.active );
          }
       } );
@@ -514,7 +533,12 @@ void update_top_n_authorities( database& db )
          // use index to grab the top N holders of the asset and vote_counter to obtain the weights
 
          const top_holders_special_authority& tha = auth.get< top_holders_special_authority >();
+         
+         const asset_object& core = asset_id_type(0)(db);
+         const asset_dynamic_data_object& core_dd = core.dynamic_asset_data_id(db);  
+  
          vote_counter vc;
+
          const auto& bal_idx = db.get_index_type< account_balance_index >().indices().get< by_asset_balance >();
          uint8_t num_needed = tha.num_top_holders;
          if( num_needed == 0 )
@@ -527,7 +551,12 @@ void update_top_n_authorities( database& db )
              assert( bal.asset_type == tha.asset );
              if( bal.owner == acct.id )
                 continue;
-             vc.add( bal.owner, bal.balance.value );
+             vc.add( bal.owner, 
+             bal.balance.value,
+             acct.activity_index,
+             db.get_global_properties().parameters.activity_weight, 
+             core_dd.current_supply.value );
+
              --num_needed;
              if( num_needed == 0 )
                 break;

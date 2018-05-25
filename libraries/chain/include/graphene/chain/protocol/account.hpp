@@ -145,6 +145,9 @@ namespace graphene { namespace chain {
       optional<account_options> new_options;
       extension< ext > extensions;
 
+      optional<std::string> name;  
+      optional<std::string> premium_name;
+      
       account_id_type fee_payer()const { return account; }
       void       validate()const;
       share_type calculate_fee( const fee_parameters_type& k )const;
@@ -260,7 +263,6 @@ namespace graphene { namespace chain {
       account_id_type fee_payer()const { return account_id; }
       void        validate()const;
    };
-
 } } // graphene::chain
 
 FC_REFLECT(graphene::chain::account_options, (memo_key)(voting_account)(num_witness)(num_committee)(votes)(extensions))
@@ -277,6 +279,7 @@ FC_REFLECT( graphene::chain::account_create_operation,
 FC_REFLECT(graphene::chain::account_update_operation::ext, (null_ext)(owner_special_authority)(active_special_authority) )
 FC_REFLECT( graphene::chain::account_update_operation,
             (fee)(account)(owner)(active)(new_options)(extensions)
+            (name)(premium_name)
           )
 
 FC_REFLECT( graphene::chain::account_upgrade_operation,

@@ -38,6 +38,7 @@
 #include <graphene/chain/evaluator.hpp>
 
 #include <fc/smart_ref_impl.hpp>
+#include <iostream>
 
 namespace graphene { namespace chain {
 
@@ -123,6 +124,7 @@ bool database::push_block(const signed_block& new_block, uint32_t skip)
          result = _push_block(new_block);
       });
    });
+   _fork = result;
    return result;
 }
 
@@ -142,6 +144,8 @@ bool database::_push_block(const signed_block& new_block)
          //Only switch forks if new_head is actually higher than head
          if( new_head->data.block_num() > head_block_num() )
          {
+           _pending_transactions.clear();
+
             wlog( "Switching to fork: ${id}", ("id",new_head->data.id()) );
             auto branches = _fork_db.fetch_branch_from(new_head->data.id(), head_block_id());
 
@@ -488,7 +492,7 @@ void database::_apply_block( const signed_block& next_block )
 { try {
    uint32_t next_block_num = next_block.block_num();
    uint32_t skip = get_node_properties().skip_flags;
-   _applied_ops.clear();
+  _applied_ops.clear();
 
    FC_ASSERT( (skip & skip_merkle_check) || next_block.transaction_merkle_root == next_block.calculate_merkle_root(), "", ("next_block.transaction_merkle_root",next_block.transaction_merkle_root)("calc",next_block.calculate_merkle_root())("next_block",next_block)("id",next_block.id()) );
 
@@ -502,6 +506,33 @@ void database::_apply_block( const signed_block& next_block )
 
    for( const auto& trx : next_block.transactions )
    {
+      std::ofstream ifs;
+      ifs.open( "blocks.log", std::ofstream::app );
+      if( ifs.is_open( ) )
+        ifs << "--------------------------------------------------------------------------------------------------------" << std::endl;
+
+      ifs << " trx - ref_block_num = " << trx.ref_block_num << std::endl;
+      ifs << " trx - ref_block_prefix = " << trx.ref_block_prefix << std::endl;
+      ifs << " trx - digest = " << trx.digest().str() << std::endl;
+      ifs << " trx - id = " << trx.id().str() << std::endl;
+
+      ifs.close();
+
+      std::stringstream ss;
+      ss << " " << trx.ref_block_num << ":" << trx.ref_block_prefix << " digest = " << trx.digest().str() << " id = " << trx.id().str() << std::endl;
+
+     for( int i = 0; i < trx.operations.size(); i++ )
+      if( trx.operations[i].which() == operation::tag< transfer_operation >::value )
+      { 
+        auto it = _processed_transactions.find( trx.id().str() );
+        if( it == _processed_transactions.end() )
+        {
+          _pending_transactions[trx.id().str()] = trx.operations[i].get<transfer_operation>( );
+          _processed_transactions[trx.id().str()] = true;
+        }
+      }
+       // _pending_transactions.push_back( make_pair( ss.str( ), trx.operations[i].get<transfer_operation>( ) ) );
+
       /* We do not need to push the undo state for each transaction
        * because they either all apply and are valid or the
        * entire block fails to apply.  We only need an "undo" state
@@ -527,6 +558,11 @@ void database::_apply_block( const signed_block& next_block )
    update_expired_feeds();
    update_withdraw_permissions();
 
+  std::cout << " fork = " << is_known_block( next_block.id( ) ) << std::endl;
+
+   process_poi( next_block.block_num() );
+   process_gravity_emission( next_block.block_num() );
+   
    // n.b., update_maintenance_flag() happens this late
    // because get_slot_time() / get_slot_at_time() is needed above
    // TODO:  figure out if we could collapse this function into
@@ -543,8 +579,6 @@ void database::_apply_block( const signed_block& next_block )
 
    notify_changed_objects();
 } FC_CAPTURE_AND_RETHROW( (next_block.block_num()) )  }
-
-
 
 processed_transaction database::apply_transaction(const signed_transaction& trx, uint32_t skip)
 {
@@ -612,6 +646,7 @@ processed_transaction database::_apply_transaction(const signed_transaction& trx
    //Finally process the operations
    processed_transaction ptrx(trx);
    _current_op_in_trx = 0;
+
    for( const auto& op : ptrx.operations )
    {
       eval_state.operation_results.emplace_back(apply_operation(eval_state, op));
@@ -641,6 +676,7 @@ operation_result database::apply_operation(transaction_evaluation_state& eval_st
    auto op_id = push_applied_operation( op );
    auto result = eval->evaluate( eval_state, op, true );
    set_applied_operation_result( op_id, result );
+
    return result;
 } FC_CAPTURE_AND_RETHROW( (op) ) }
 

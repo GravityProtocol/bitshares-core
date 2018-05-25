@@ -154,6 +154,9 @@ namespace graphene { namespace chain {
 
          /// The account's name. This name must be unique among all account names on the graph. May not be empty.
          string name;
+         string premium_name;
+         double activity_index = 0.0;
+         share_type emission_volume = 0;
 
          /**
           * The owner authority represents absolute control over the account. Usually the keys in this authority will
@@ -350,6 +353,7 @@ namespace graphene { namespace chain {
    typedef generic_index<account_balance_object, account_balance_object_multi_index_type> account_balance_index;
 
    struct by_name{};
+   struct by_premium_name{};
 
    /**
     * @ingroup object_index
@@ -358,7 +362,8 @@ namespace graphene { namespace chain {
       account_object,
       indexed_by<
          ordered_unique< tag<by_id>, member< object, object_id_type, &object::id > >,
-         ordered_unique< tag<by_name>, member<account_object, string, &account_object::name> >
+         ordered_unique< tag<by_name>, member<account_object, string, &account_object::name> >,
+         ordered_unique< tag<by_premium_name>, member<account_object, string, &account_object::premium_name> >
       >
    > account_multi_index_type;
 
@@ -373,7 +378,7 @@ FC_REFLECT_DERIVED( graphene::chain::account_object,
                     (graphene::db::object),
                     (membership_expiration_date)(registrar)(referrer)(lifetime_referrer)
                     (network_fee_percentage)(lifetime_referrer_fee_percentage)(referrer_rewards_percentage)
-                    (name)(owner)(active)(options)(statistics)(whitelisting_accounts)(blacklisting_accounts)
+                    (name)(premium_name)(activity_index)(emission_volume)(owner)(active)(options)(statistics)(whitelisting_accounts)(blacklisting_accounts)
                     (whitelisted_accounts)(blacklisted_accounts)
                     (cashback_vb)
                     (owner_special_authority)(active_special_authority)

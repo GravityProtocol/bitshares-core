@@ -83,10 +83,10 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
    graphene::chain::database& db = database();
    const vector<optional< operation_history_object > >& hist = db.get_applied_operations();
    for( const optional< operation_history_object >& o_op : hist )
-   {
+   {      
       optional<operation_history_object> oho;
-
-      auto create_oho = [&]() {
+      auto create_oho = [&]() 
+      {
          return optional<operation_history_object>( db.create<operation_history_object>( [&]( operation_history_object& h )
          {
             if( o_op.valid() )
@@ -113,7 +113,12 @@ void account_history_plugin_impl::update_account_histories( const signed_block& 
          oho = create_oho();
 
       const operation_history_object& op = *o_op;
-
+/*
+      if( op.op.which() == operation::tag< transfer_operation >::value ) {
+        db._pending_transactions.push_back( op.op.get<transfer_operation>( ) );
+        std::cout << "INCOMING TRANSFER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+      };
+    */  
       // get the set of accounts this operation applies to
       flat_set<account_id_type> impacted;
       vector<authority> other;

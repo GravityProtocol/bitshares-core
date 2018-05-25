@@ -27,6 +27,10 @@
 #include <graphene/chain/hardfork.hpp>
 #include <graphene/chain/is_authorized_asset.hpp>
 
+#include <boost/functional/hash.hpp>
+#include <boost/crc.hpp>
+#include <chrono>
+
 namespace graphene { namespace chain {
 void_result transfer_evaluator::do_evaluate( const transfer_operation& op )
 { try {
@@ -74,14 +78,13 @@ void_result transfer_evaluator::do_evaluate( const transfer_operation& op )
 
 }  FC_CAPTURE_AND_RETHROW( (op) ) }
 
-void_result transfer_evaluator::do_apply( const transfer_operation& o )
+void_result transfer_evaluator::do_apply(const transfer_operation& o)
 { try {
-   db().adjust_balance( o.from, -o.amount );
-   db().adjust_balance( o.to, o.amount );
+   db().adjust_balance(o.from, -o.amount);
+   db().adjust_balance(o.to, o.amount);
+
    return void_result();
 } FC_CAPTURE_AND_RETHROW( (o) ) }
-
-
 
 void_result override_transfer_evaluator::do_evaluate( const override_transfer_operation& op )
 { try {

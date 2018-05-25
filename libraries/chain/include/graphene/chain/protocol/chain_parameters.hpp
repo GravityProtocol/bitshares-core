@@ -39,6 +39,14 @@ namespace graphene { namespace chain {
    typedef static_variant<>  parameter_extension; 
    struct chain_parameters
    {
+     struct ext
+      {
+         /** container of coin_seconds to fees parameters */
+         struct coin_seconds_as_fees_options
+         {
+            int a = 0;
+         };
+      };
       /** using a smart ref breaks the circular dependency created between operations and the fee schedule */
       smart_ref<fee_schedule> current_fees;                       ///< current schedule of fees
       uint8_t                 block_interval                      = GRAPHENE_DEFAULT_BLOCK_INTERVAL; ///< interval in seconds between blocks
@@ -69,6 +77,23 @@ namespace graphene { namespace chain {
       uint16_t                accounts_per_fee_scale              = GRAPHENE_DEFAULT_ACCOUNTS_PER_FEE_SCALE; ///< number of accounts between fee scalings
       uint8_t                 account_fee_scale_bitshifts         = GRAPHENE_DEFAULT_ACCOUNT_FEE_SCALE_BITSHIFTS; ///< number of times to left bitshift account registration fee at each scaling
       uint8_t                 max_authority_depth                 = GRAPHENE_MAX_SIG_CHECK_DEPTH;
+      double                  emission_koefficient                = 1.0;
+      double                  activity_weight                     = 0.1;
+      uint32_t                activity_period                          = 86400;
+      uint32_t                emission_period                     = 604800;
+      uint64_t                current_emission_volume             = 0;
+
+      uint64_t                emission_scale                      = 1000;
+      double                  delay_koefficient                   = 0.5;
+
+      uint32_t                account_amount_threshold            = 10000;
+      uint32_t                transaction_amount_threshold        = 100;
+
+      uint32_t                year_emission_limit                 = 100;
+
+      typedef static_variant<ext::coin_seconds_as_fees_options>  parameter_extension;
+      typedef flat_set<parameter_extension> extensions_type;
+
       extensions_type         extensions;
 
       /** defined in fee_schedule.cpp */
@@ -76,6 +101,13 @@ namespace graphene { namespace chain {
    };
 
 } }  // graphene::chain
+
+FC_REFLECT( graphene::chain::chain_parameters::ext::coin_seconds_as_fees_options,
+            (a)
+          )
+
+FC_REFLECT_TYPENAME( graphene::chain::chain_parameters::parameter_extension )
+FC_REFLECT_TYPENAME( graphene::chain::chain_parameters::extensions_type )
 
 FC_REFLECT( graphene::chain::chain_parameters,
             (current_fees)
@@ -106,5 +138,15 @@ FC_REFLECT( graphene::chain::chain_parameters,
             (accounts_per_fee_scale)
             (account_fee_scale_bitshifts)
             (max_authority_depth)
+            (emission_koefficient)
+            (activity_weight)
+            (activity_period)
+            (emission_period)
+            (current_emission_volume)
+            (emission_scale)
+            (delay_koefficient)
+            (account_amount_threshold)
+            (transaction_amount_threshold)
             (extensions)
           )
+          

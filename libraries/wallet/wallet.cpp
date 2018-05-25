@@ -1997,7 +1997,7 @@ public:
    { try {
       FC_ASSERT( !self.is_locked() );
       fc::optional<asset_object> asset_obj = get_asset(asset_symbol);
-      FC_ASSERT(asset_obj, "Could not find asset matching ${asset}", ("asset", asset_symbol));
+      FC_ASSERT( asset_obj, "Could not find asset matching ${asset}", ("asset", asset_symbol));
 
       account_object from_account = get_account(from);
       account_object to_account = get_account(to);
@@ -2005,6 +2005,81 @@ public:
       account_id_type to_id = get_account_id(to);
 
       transfer_operation xfer_op;
+
+      xfer_op.from = from_id;
+      xfer_op.to = to_id;
+      xfer_op.amount = asset_obj->amount_from_string(amount);
+
+      if( memo.size() )
+         {
+            xfer_op.memo = memo_data();
+            xfer_op.memo->from = from_account.options.memo_key;
+            xfer_op.memo->to = to_account.options.memo_key;
+            xfer_op.memo->set_message(get_private_key(from_account.options.memo_key),
+                                      to_account.options.memo_key, memo);
+         }
+
+      signed_transaction tx;
+      tx.operations.push_back(xfer_op);
+      set_operation_fees( tx, _remote_db->get_global_properties().parameters.current_fees);
+      tx.validate();
+
+      return sign_transaction(tx, broadcast);
+   } FC_CAPTURE_AND_RETHROW( (from)(to)(amount)(asset_symbol)(memo)(broadcast) ) }
+
+   signed_transaction approve_gravity_transfer( string approver, string uuid, bool broadcast = false )
+   { try {
+      FC_ASSERT( !self.is_locked() );
+
+      account_object approver_account = get_account(approver);
+      account_id_type approver_id = approver_account.id;
+
+      gravity_transfer_approve_operation xfer_op;
+
+      xfer_op.approver = approver_id;
+      xfer_op.uuid = uuid;
+
+      signed_transaction tx;
+      tx.operations.push_back(xfer_op);
+      set_operation_fees( tx, _remote_db->get_global_properties().parameters.current_fees);
+      tx.validate();
+
+      return sign_transaction(tx, broadcast);
+   } FC_CAPTURE_AND_RETHROW( (approver)(uuid)(broadcast) ) }
+
+   signed_transaction reject_gravity_transfer( string approver, string uuid, bool broadcast = false )
+   { try {
+      FC_ASSERT( !self.is_locked() );
+
+      account_object approver_account = get_account(approver);
+      account_id_type approver_id = approver_account.id;
+
+      gravity_transfer_reject_operation xfer_op;
+
+      xfer_op.approver = approver_id;
+      xfer_op.uuid = uuid;
+
+      signed_transaction tx;
+      tx.operations.push_back(xfer_op);
+      set_operation_fees( tx, _remote_db->get_global_properties().parameters.current_fees);
+      tx.validate();
+
+      return sign_transaction(tx, broadcast);
+   } FC_CAPTURE_AND_RETHROW( (approver)(uuid)(broadcast) ) }
+
+   signed_transaction gravity_transfer(string from, string to, string fee_payer, string amount,
+                               string asset_symbol, string memo, bool broadcast = false)
+   { try {
+      FC_ASSERT( !self.is_locked() );
+      fc::optional<asset_object> asset_obj = get_asset(asset_symbol);
+      FC_ASSERT(asset_obj, "Could not find asset matching ${asset}", ("asset", asset_symbol));
+
+      account_object from_account = get_account(from);
+      account_object to_account = get_account(to);
+      account_id_type from_id = from_account.id;
+      account_id_type to_id = get_account_id(to);
+
+      gravity_transfer_operation xfer_op;
 
       xfer_op.from = from_id;
       xfer_op.to = to_id;
@@ -2783,6 +2858,21 @@ uint64_t wallet_api::get_account_count() const
    return my->_remote_db->get_account_count();
 }
 
+std::string wallet_api::get_new_account_address( ) const
+{
+   return my->_remote_db->get_new_account_address( );
+}   
+
+gravity_emission_object wallet_api::list_gravity_emission( ) const
+{
+   return my->_remote_db->list_gravity_emission();
+}
+
+vector<gravity_transfer_object> wallet_api::get_my_gravity_transfers( const std::string& account ) const
+{
+    return my->_remote_db->get_my_gravity_transfers( account );       
+}
+
 vector<account_object> wallet_api::list_my_accounts()
 {
    return vector<account_object>(my->_wallet.my_accounts.begin(), my->_wallet.my_accounts.end());
@@ -3210,11 +3300,28 @@ signed_transaction wallet_api::issue_asset(string to_account, string amount, str
    return my->issue_asset(to_account, amount, symbol, memo, broadcast);
 }
 
+signed_transaction wallet_api::gravity_transfer(string from, string to, string fee_payer, string amount,
+                               string asset_symbol, string memo, bool broadcast)
+{
+   return my->gravity_transfer(from, to, fee_payer, amount, asset_symbol, memo, broadcast);
+}
+
 signed_transaction wallet_api::transfer(string from, string to, string amount,
                                         string asset_symbol, string memo, bool broadcast /* = false */)
 {
    return my->transfer(from, to, amount, asset_symbol, memo, broadcast);
 }
+
+signed_transaction wallet_api::approve_gravity_transfer( string approver, string uuid, bool broadcast )
+{
+      return my->approve_gravity_transfer( approver, uuid, broadcast );
+}
+
+signed_transaction wallet_api::reject_gravity_transfer( string approver, string uuid, bool broadcast )
+{
+      return my->reject_gravity_transfer( approver, uuid, broadcast );
+}
+
 signed_transaction wallet_api::create_asset(string issuer,
                                             string symbol,
                                             uint8_t precision,

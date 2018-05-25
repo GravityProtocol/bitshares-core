@@ -38,6 +38,7 @@
 #include <graphene/chain/protocol/withdraw_permission.hpp>
 #include <graphene/chain/protocol/witness.hpp>
 #include <graphene/chain/protocol/worker.hpp>
+#include <graphene/chain/protocol/gravity.hpp>
 
 namespace graphene { namespace chain {
 
@@ -69,7 +70,7 @@ namespace graphene { namespace chain {
             asset_publish_feed_operation,
             witness_create_operation,
             witness_update_operation,
-            proposal_create_operation,
+            proposal_create_operation,          
             proposal_update_operation,
             proposal_delete_operation,
             withdraw_permission_create_operation,
@@ -93,7 +94,10 @@ namespace graphene { namespace chain {
             asset_claim_fees_operation,
             fba_distribute_operation,       // VIRTUAL
             bid_collateral_operation,
-            execute_bid_operation           // VIRTUAL
+            execute_bid_operation,           // VIRTUAL
+            gravity_transfer_operation,
+            gravity_transfer_approve_operation,
+            gravity_transfer_reject_operation
          > operation;
 
    /// @} // operations group

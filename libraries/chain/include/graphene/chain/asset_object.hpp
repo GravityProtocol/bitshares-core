@@ -114,6 +114,8 @@ namespace graphene { namespace chain {
          string amount_to_pretty_string(const asset &amount)const
          { FC_ASSERT(amount.asset_id == id); return amount_to_pretty_string(amount.amount); }
 
+         double amount_to_real(share_type amount)const;
+
          /// Ticker symbol for this asset, i.e. "USD"
          string symbol;
          /// Maximum number of digits after the decimal point (must be <= 12)

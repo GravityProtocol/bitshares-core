@@ -42,6 +42,21 @@ struct get_impacted_account_visitor
       _impacted.insert( op.to );
    }
 
+   void operator()( const gravity_transfer_operation& op ) 
+   {
+      _impacted.insert( op.from );
+   }
+
+    void operator()( const gravity_transfer_approve_operation& op )
+   {
+      _impacted.insert( op.approver );
+   }
+
+      void operator()( const gravity_transfer_reject_operation& op )
+   {
+      _impacted.insert( op.approver );
+   }  
+
    void operator()( const asset_claim_fees_operation& op ){}
    void operator()( const limit_order_create_operation& op ) {}
    void operator()( const limit_order_cancel_operation& op )

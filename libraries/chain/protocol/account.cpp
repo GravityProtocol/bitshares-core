@@ -60,6 +60,9 @@ bool is_valid_name( const string& name )
 { try {
     const size_t len = name.size();
 
+    if( len == 0 )
+      return true;
+
     if( len < GRAPHENE_MIN_ACCOUNT_NAME_LENGTH )
     {
           ilog( ".");

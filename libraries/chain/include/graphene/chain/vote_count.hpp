@@ -25,6 +25,8 @@
 #pragma once
 
 #include <graphene/chain/protocol/authority.hpp>
+#include <graphene/singularity/gravity_index_calculator.hpp>
+
 
 namespace graphene { namespace chain {
 
@@ -32,17 +34,39 @@ namespace graphene { namespace chain {
  * Keep track of vote totals in internal authority object.  See #533.
  */
 struct vote_counter
-{
+{    
    template< typename Component >
    void add( Component who, uint64_t votes )
    {
       if( votes == 0 )
          return;
+         
       assert( votes <= last_votes );
       last_votes = votes;
       if( bitshift == -1 )
          bitshift = std::max(int(boost::multiprecision::detail::find_msb( votes )) - 15, 0);
       uint64_t scaled_votes = std::max( votes >> bitshift, uint64_t(1) );
+      assert( scaled_votes <= std::numeric_limits<weight_type>::max() );
+      total_votes += scaled_votes;
+      assert( total_votes <= std::numeric_limits<uint32_t>::max() );
+      auth.add_authority( who, weight_type( scaled_votes ) );
+   }
+   
+
+   template< typename Component >
+   void add( Component who, uint64_t votes, double activity_index, double activity_weight, uint64_t current_supply )
+   {
+      singularity::gravity_index_calculator gic( activity_weight, current_supply );
+      uint64_t v = gic.calculate_votes(votes, activity_index);
+
+      if( v == 0 )
+         return;
+
+      assert( v <= last_votes );
+      last_votes = v;
+      if( bitshift == -1 )
+         bitshift = std::max(int(boost::multiprecision::detail::find_msb( v )) - 15, 0);
+      uint64_t scaled_votes = std::max( v >> bitshift, uint64_t(1) );
       assert( scaled_votes <= std::numeric_limits<weight_type>::max() );
       total_votes += scaled_votes;
       assert( total_votes <= std::numeric_limits<uint32_t>::max() );

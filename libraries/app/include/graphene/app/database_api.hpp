@@ -40,6 +40,8 @@
 #include <graphene/chain/proposal_object.hpp>
 #include <graphene/chain/worker_object.hpp>
 #include <graphene/chain/witness_object.hpp>
+#include <graphene/chain/gravity_emission_object.hpp>
+#include <graphene/chain/gravity_transfer_object.hpp>
 
 #include <graphene/market_history/market_history_plugin.hpp>
 
@@ -128,6 +130,12 @@ class database_api
       /////////////
       // Objects //
       /////////////
+
+      vector<gravity_transfer_object> get_my_gravity_transfers( const std::string& account ) const;
+
+      std::string get_new_account_address( ) const;
+
+      gravity_emission_object list_gravity_emission( ) const;
 
       /**
        * @brief Get the objects corresponding to the provided IDs
@@ -676,6 +684,11 @@ FC_API(graphene::app::database_api,
    (get_balance_objects)
    (get_vested_balances)
    (get_vesting_balances)
+
+   // Gravity
+   (list_gravity_emission)
+   (get_new_account_address)
+   (get_my_gravity_transfers)
 
    // Assets
    (get_assets)
