@@ -287,6 +287,8 @@ void database:: process_gravity_emission( const uint32_t& block_num )
    _emission_parameters.emission_scale = get_global_properties().parameters.emission_scale * GRAPHENE_BLOCKCHAIN_PRECISION;
    _emission_parameters.delay_koefficient = get_global_properties().parameters.delay_koefficient;
    _emission_parameters.year_emission_limit = get_global_properties().parameters.year_emission_limit;
+   
+   _emission_parameters.emission_event_count_per_year = (3600 * 24 * 365) / (get_global_properties().parameters.emission_period * get_global_properties().parameters.block_interval);
 
    _emission.set_parameters( _emission_parameters );
   
