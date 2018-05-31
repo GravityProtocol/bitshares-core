@@ -287,6 +287,8 @@ void database:: process_gravity_emission( const uint32_t& block_num )
    _emission_parameters.emission_scale = get_global_properties().parameters.emission_scale * GRAPHENE_BLOCKCHAIN_PRECISION;
    _emission_parameters.delay_koefficient = get_global_properties().parameters.delay_koefficient;
    _emission_parameters.year_emission_limit = get_global_properties().parameters.year_emission_limit;
+   
+   _emission_parameters.emission_event_count_per_year = (3600 * 24 * 365) / (get_global_properties().parameters.emission_period * get_global_properties().parameters.block_interval);
 
    _emission.set_parameters( _emission_parameters );
   
@@ -297,7 +299,7 @@ void database:: process_gravity_emission( const uint32_t& block_num )
   
    uint32_t current_activity = _activity_period.get_activity( );
 
-   auto current_emission = _emission.calculate( core_dd.current_supply.value, _activity_period );
+   auto current_emission = _emission.calculate( get_global_properties().parameters.current_emission_volume, _activity_period );
    _emission_state = _emission.get_emission_state();
    
    if( current_activity > _last_peak_activity )
@@ -321,6 +323,7 @@ void database:: process_gravity_emission( const uint32_t& block_num )
   
     ifs << "year_emission_limit = " << _emission_parameters.year_emission_limit << std::endl;
     ifs << "emission_scale = " << _emission_parameters.emission_scale << std::endl;
+    ifs << "emission_event_count_per_year = " << _emission_parameters.emission_event_count_per_year << std::endl;
   
     ifs << "--end of parameters--" << std::endl;
      
