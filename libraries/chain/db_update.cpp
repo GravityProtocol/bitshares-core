@@ -323,6 +323,7 @@ void database:: process_gravity_emission( const uint32_t& block_num )
   
     ifs << "year_emission_limit = " << _emission_parameters.year_emission_limit << std::endl;
     ifs << "emission_scale = " << _emission_parameters.emission_scale << std::endl;
+    ifs << "emission_event_count_per_year = " << _emission_parameters.emission_event_count_per_year << std::endl;
   
     ifs << "--end of parameters--" << std::endl;
      
