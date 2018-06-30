@@ -47,6 +47,8 @@
   
 #include <map>
 #include <boost/functional/hash.hpp>
+#include <future>
+#include <atomic>
   
 namespace graphene { namespace chain {
    using graphene::db::abstract_object;
@@ -556,6 +558,8 @@ namespace graphene { namespace chain {
          singularity::emission_calculator           _emission;
          singularity::activity_period               _activity_period;
          singularity::emission_state_t              _emission_state;
+
+         std::future<singularity::account_activity_index_map_t>  _future_activity_index;
    };
   
    namespace detail

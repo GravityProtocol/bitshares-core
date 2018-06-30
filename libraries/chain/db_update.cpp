@@ -40,8 +40,9 @@
   
 #include <fc/uint128.hpp>
   
-#include <time.h>
+#include <chrono>
 #include <cmath>
+#include <time.h>
   
 namespace graphene { namespace chain {
   
@@ -567,17 +568,72 @@ void database:: activity_save_parameters()
 {
     std::cout << "activity_save_parameters start" << std::endl;
 
+    singularity::activity_index_calculator aic(_activity_parameters);
+    _activity_parameters = aic.get_parameters();
+    _activity_parameters.account_amount_threshold = get_global_properties().parameters.account_amount_threshold;
+    _activity_parameters.transaction_amount_threshold = get_global_properties().parameters.transaction_amount_threshold;
+    _activity_parameters.token_usd_rate = 0.1;
+
     std::cout << "activity_save_parameters end" << std::endl;
 }
 
 singularity::account_activity_index_map_t database::async_activity_calculations(int w_start, int w_end)
 {
+    //open activity log
+    std::ofstream act_log;
+    act_log.open( "activity.log", std::ofstream::app );
+    act_log << "activity calculation started [" << w_start << "," << w_end << "]" << std::endl;
+    auto time_start = std::chrono::high_resolution_clock::now();
 
+    //create the calculator with saved parameters
+    singularity::activity_index_calculator aic(_activity_parameters);
+
+    //iterate the block history from start to end
+    for (uint32_t i = w_start; i <= w_end; i++)
+    {
+        //TODO thread safety ????
+        block_info b_info = _block_history[i];
+
+        //set threshold parameters
+        auto params = aic.get_parameters();
+        params.account_amount_threshold = b_info.account_amount_threshold;
+        params.transaction_amount_threshold = b_info.transaction_amount_threshold;
+        params.token_usd_rate = b_info.token_usd_rate;
+        aic.set_parameters(params);
+
+        //add transactions from block
+        aic.add_block(b_info.transactions);
+    }
+
+    auto blocks_completed = std::chrono::high_resolution_clock::now();
+    act_log << "blocks added in " << (blocks_completed - time_start).count() << std::endl;
+
+    //set saved parameters
+    aic.set_parameters(_activity_parameters);
+
+    //perform the calculations
+    auto result = aic.calculate( );
+
+    auto calculations_completed = std::chrono::high_resolution_clock::now();
+    act_log << "calculations completed in " << (calculations_completed - blocks_completed).count() << std::endl;
+    act_log.close();
+
+    return result;
 }
 
 void database::activity_start_async(int window_start_block, int window_end_block)
 {
     std::cout << "activity_start_async start" << std::endl;
+    std::cout << "activity window [" << window_start_block << ", "
+                                     << window_end_block << "]" << std::endl;
+
+    _future_activity_index = std::async(
+            std::launch::async,
+            [&](int w_start, int w_end){
+                return async_activity_calculations(w_start, w_end);
+               },
+            window_start_block,
+            window_end_block);
 
     std::cout << "activity_start_async end" << std::endl;
 }
@@ -585,6 +641,50 @@ void database::activity_start_async(int window_start_block, int window_end_block
 void database::activity_save_results()
 {
     std::cout << "activity_save_results start" << std::endl;
+
+    //wait for results until they are ready
+    if (_future_activity_index.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+    {
+        std::cout << "calculating activity index ..." << std::endl;
+    }
+
+    //get the result from async
+    singularity::account_activity_index_map_t activity_index = _future_activity_index.get();
+
+    //open activity log
+    std::ofstream act_log;
+    act_log.open( "activity.log", std::ofstream::app );
+    act_log << "started saving results" << std::endl;
+    auto time_start = std::chrono::high_resolution_clock::now();
+
+    //loop through all accounts
+    const auto& idx = get_index_type<account_index>().indices().get<by_name>();
+    for( auto itr = idx.begin( ); itr != idx.end( ); itr++ )
+    {
+        //set account activity_index if we find the value
+        auto ai_result = activity_index.find(itr->name);
+        if(ai_result != activity_index.end())
+        {
+            modify( *itr, [&ai_result]( account_object& a )
+            {
+                a.activity_index = ai_result->second;
+            });
+            act_log << itr->name << ";" << ai_result->second << std::endl;
+        }
+        //set it to zero if we cannot find the value
+        else
+        {
+            modify(*itr, [&ai_result](account_object &a)
+            {
+                a.activity_index = 0;
+            });
+            act_log << itr->name << ";" << 0 << std::endl;
+        }
+    }
+
+    auto time_end = std::chrono::high_resolution_clock::now();
+    act_log << "saving results completed in " << (time_start - time_end).count() << std::endl;
+    act_log.close();
 
     std::cout << "activity_save_results end" << std::endl;
 }
