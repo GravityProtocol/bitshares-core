@@ -531,6 +531,64 @@ void database::_apply_block( const signed_block& next_block )
    clear_expired_orders();
    update_expired_feeds();
    update_withdraw_permissions();
+
+    std::cout << "gravity section" << std::endl;
+
+    collect_block_data(next_block);
+
+    auto params = get_global_properties().parameters;
+
+    //activity triggers
+
+    if (next_block_num ==_last_activity_processing_block + params.activity_period )
+    {
+        activity_save_parameters();
+
+        _activity_start_async_block = next_block_num + params.async_calculation_delay;
+        _activity_save_async_result_block = _activity_start_async_block + params.async_calculation_interval;
+        _last_activity_processing_block = next_block_num;
+    }
+
+    if (next_block_num == _activity_start_async_block)
+    {
+       int32_t window_end_block = _last_activity_processing_block;
+       int32_t window_start_block = window_end_block - params.transaction_history_window + 1;
+       if (window_start_block < 1) window_start_block = 1;
+
+       activity_start_async(window_start_block, window_end_block);
+    }
+
+    if (next_block_num == _activity_save_async_result_block)
+    {
+       activity_save_results();
+    }
+
+    //emission triggers
+
+    if (next_block_num ==_last_emission_processing_block + params.emission_period )
+    {
+        emission_save_parameters();
+
+        _emission_start_async_block = next_block_num + params.async_calculation_delay;
+        _emission_save_async_result_block = _emission_start_async_block + params.async_calculation_interval;
+        _last_emission_processing_block = next_block_num;
+    }
+
+    if (next_block_num == _emission_start_async_block)
+    {
+       int32_t window_end_block = _last_emission_processing_block;
+       int32_t window_start_block = window_end_block - params.emission_period + 1;
+       if (window_start_block < 1) window_start_block = 1;
+
+       emission_start_async(window_start_block, window_end_block);
+    }
+
+    if (next_block_num == _emission_save_async_result_block)
+    {
+       emission_save_results();
+    }
+
+    std::cout << "end gravity section" << std::endl;
    
    // n.b., update_maintenance_flag() happens this late
    // because get_slot_time() / get_slot_at_time() is needed above

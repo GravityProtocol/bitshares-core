@@ -429,8 +429,13 @@ namespace graphene { namespace chain {
          //////////////////// db_block.cpp ////////////////////
   
        public:   
-         uint32_t                                   _last_activity_processing_time = 0;
-         uint32_t                                   _last_emission_processing_time = 0;
+         uint32_t                                   _last_activity_processing_block = 0;
+         uint32_t                                   _activity_start_async_block = 0;
+         uint32_t                                   _activity_save_async_result_block = 0;
+
+         uint32_t                                   _last_emission_processing_block = 0;
+         uint32_t                                   _emission_start_async_block = 0;
+         uint32_t                                   _emission_save_async_result_block = 0;
 
          // these were formerly private, but they have a fairly well-defined API, so let's make them public
          void                  apply_block( const signed_block& next_block, uint32_t skip = skip_nothing );
@@ -459,6 +464,16 @@ namespace graphene { namespace chain {
          void update_maintenance_flag( bool new_maintenance_flag );
          void update_withdraw_permissions();
          bool check_for_blackswan( const asset_object& mia, bool enable_black_swan = true );
+
+         void collect_block_data(const signed_block& next_block);
+         void clear_old_block_history();
+         void activity_save_parameters();
+         singularity::account_activity_index_map_t async_activity_calculations(int w_start, int w_end);
+         void activity_start_async(int window_start_block, int window_end_block);
+         void activity_save_results();
+         void emission_save_parameters();
+         void emission_start_async(int window_start_block, int window_end_block);
+         void emission_save_results();
   
          ///Steps performed only at maintenance intervals
          ///@{

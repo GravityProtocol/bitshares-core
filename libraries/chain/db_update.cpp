@@ -478,5 +478,64 @@ void database::update_withdraw_permissions()
    while( !permit_index.empty() && permit_index.begin()->expiration <= head_block_time() )
       remove(*permit_index.begin());
 }
+
+void database::collect_block_data(const signed_block& next_block)
+{
+    std::cout << "collect_block_data start" << std::endl;
+
+    std::cout << "collect_block_data end" << std::endl;
+}
+
+void database::clear_old_block_history()
+{
+    std::cout << "clear_old_block_history start" << std::endl;
+    std::cout << "clear_old_block_history end" << std::endl;
+}
+
+void database:: activity_save_parameters()
+{
+    std::cout << "activity_save_parameters start" << std::endl;
+
+    std::cout << "activity_save_parameters end" << std::endl;
+}
+
+singularity::account_activity_index_map_t database::async_activity_calculations(int w_start, int w_end)
+{
+
+}
+
+void database::activity_start_async(int window_start_block, int window_end_block)
+{
+    std::cout << "activity_start_async start" << std::endl;
+
+    std::cout << "activity_start_async end" << std::endl;
+}
+
+void database::activity_save_results()
+{
+    std::cout << "activity_save_results start" << std::endl;
+
+    std::cout << "activity_save_results end" << std::endl;
+}
+
+void database::emission_save_parameters()
+{
+    std::cout << "emission_save_parameters start" << std::endl;
+    std::cout << "emission_save_parameters end" << std::endl;
+}
+
+void database::emission_start_async(int window_start_block, int window_end_block)
+{
+    std::cout << "emission_start_async start" << std::endl;
+    std::cout << "emission window [" << window_start_block << ", "
+                                     << window_end_block << "]" << std::endl;
+    std::cout << "emission_start_async end" << std::endl;
+}
+
+void database::emission_save_results()
+{
+    std::cout << "emission_save_results start" << std::endl;
+    std::cout << "emission_save_results end" << std::endl;
+}
   
 } }
