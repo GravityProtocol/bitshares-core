@@ -483,6 +483,77 @@ void database::collect_block_data(const signed_block& next_block)
 {
     std::cout << "collect_block_data start" << std::endl;
 
+    uint32_t next_block_num = next_block.block_num();
+
+    //erase value for this block, to prevent influence from another fork
+    if(_block_history.find(next_block_num) != _block_history.end())
+        _block_history.erase(next_block_num);
+
+    //save the threshold settings
+    _block_history[next_block_num].transaction_amount_threshold =
+            get_global_properties().parameters.transaction_amount_threshold;
+    _block_history[next_block_num].account_amount_threshold =
+            get_global_properties().parameters.account_amount_threshold;
+    _block_history[next_block_num].token_usd_rate = 0.1;
+
+
+    //find all transfer operations
+    map<std::string, bool> processed_transactions;
+    for( const auto& trx : next_block.transactions )
+    {
+        for( int i = 0; i < trx.operations.size(); i++ )
+            if( trx.operations[i].which() == operation::tag< transfer_operation >::value )
+            {
+                auto it = processed_transactions.find( trx.id().str() );
+                if( it == processed_transactions.end() )
+                {
+                    processed_transactions[trx.id().str()] = true;
+
+                    transfer_operation tr = trx.operations[i].get<transfer_operation>();
+
+                    const asset_object& core = asset_id_type(0)(*this);
+                    const account_object& from_account = get( tr.from );
+                    const account_object& to_account = get( tr.to );
+                    const asset_object& asset_type = get( tr.amount.asset_id );
+
+                    //add the transaction in transaction_t format
+                    _block_history[next_block_num].transactions.push_back(
+                            { asset_type.amount_to_real( tr.amount.amount ),
+                              asset_type.amount_to_real( tr.fee.amount ),
+                              from_account.name,
+                              to_account.name,
+                              std::chrono::system_clock::to_time_t( std::chrono::system_clock::now() ),
+                              asset_type.amount_to_real( get_balance( from_account, core ).amount ),
+                              asset_type.amount_to_real( get_balance( to_account, core ).amount ),
+                            });
+                }
+            }
+    }
+
+    //log saved info
+    std::ofstream bi_log;
+    bi_log.open( "block_info.log", std::ofstream::app );
+
+    block_info block = _block_history[next_block_num];
+
+    bi_log << "block " << next_block_num << " params (" <<
+           block.transaction_amount_threshold << ";" <<
+           block.account_amount_threshold << ";" <<
+           block.token_usd_rate << ")" << std::endl;
+
+    for (singularity::transaction_t const& tr: block.transactions)
+    {
+        bi_log << tr.source_account << ";"
+               << tr.target_account << ";"
+               << tr.amount << ";"
+               << tr.comission << ";"
+               << tr.source_account_balance << ";"
+               << tr.target_account_balance << ";"
+               << tr.timestamp << std::endl;
+    }
+
+    bi_log.close();
+
     std::cout << "collect_block_data end" << std::endl;
 }
 

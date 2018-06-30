@@ -437,6 +437,19 @@ namespace graphene { namespace chain {
          uint32_t                                   _emission_start_async_block = 0;
          uint32_t                                   _emission_save_async_result_block = 0;
 
+         struct block_info
+         {
+             //all transactions in block
+             std::vector<singularity::transaction_t> transactions;
+
+             //threshold parameters
+             uint transaction_amount_threshold;
+             uint account_amount_threshold;
+             double token_usd_rate;
+         };
+
+         std::map<uint32_t, block_info> _block_history;
+
          // these were formerly private, but they have a fairly well-defined API, so let's make them public
          void                  apply_block( const signed_block& next_block, uint32_t skip = skip_nothing );
          processed_transaction apply_transaction( const signed_transaction& trx, uint32_t skip = skip_nothing );
