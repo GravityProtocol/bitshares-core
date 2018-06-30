@@ -431,8 +431,7 @@ namespace graphene { namespace chain {
        public:   
          uint32_t                                   _last_activity_processing_time = 0;
          uint32_t                                   _last_emission_processing_time = 0;
-         std::map<std::string, transfer_operation>  _pending_transactions;
-         std::map<std::string, bool>                _processed_transactions;
+
          // these were formerly private, but they have a fairly well-defined API, so let's make them public
          void                  apply_block( const signed_block& next_block, uint32_t skip = skip_nothing );
          processed_transaction apply_transaction( const signed_transaction& trx, uint32_t skip = skip_nothing );
@@ -460,9 +459,6 @@ namespace graphene { namespace chain {
          void update_maintenance_flag( bool new_maintenance_flag );
          void update_withdraw_permissions();
          bool check_for_blackswan( const asset_object& mia, bool enable_black_swan = true );
-         void process_credit_stories();
-         void process_gravity_emission( const uint32_t& block_num );
-         void process_poi( const uint32_t& block_num );
   
          ///Steps performed only at maintenance intervals
          ///@{
