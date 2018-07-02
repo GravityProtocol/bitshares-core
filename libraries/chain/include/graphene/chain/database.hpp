@@ -555,6 +555,7 @@ namespace graphene { namespace chain {
          std::future<singularity::account_activity_index_map_t>  _future_activity_index;
 
          singularity::emission_parameters_t         _emission_parameters;
+         double                                     _activity_weight_snapshot;
          std::map<std::string, double>              _balances_snapshot;
          uint64_t                                   _current_supply_snapshot;
          uint32_t                                   _last_peak_activity = 0;

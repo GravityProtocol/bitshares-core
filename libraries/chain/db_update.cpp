@@ -699,6 +699,9 @@ void database::emission_save_parameters()
     _emission_parameters.year_emission_limit = get_global_properties().parameters.year_emission_limit;
     _emission_parameters.emission_event_count_per_year = (3600 * 24 * 365) / (get_global_properties().parameters.emission_period * get_global_properties().parameters.block_interval);
 
+    //save activity weight
+    _activity_weight_snapshot = get_global_properties().parameters.activity_weight;
+
     //save all balances
     std::ofstream act_log;
     act_log.open( "emission_balances.log", std::ofstream::app );
@@ -758,7 +761,8 @@ uint64_t database::async_emission_calculations(int w_start, int w_end)
     _emission.set_parameters(_emission_parameters);
 
     //calculate the total emission
-    auto result = _emission.calculate( get_global_properties().parameters.current_emission_volume, _activity_period );
+    auto emission_value = _emission.calculate( get_global_properties().parameters.current_emission_volume, _activity_period );
+    em_log << "emission value = " << emission_value << std::endl;
 
     //save the emission state
     _emission_state = _emission.get_emission_state();
@@ -771,7 +775,7 @@ uint64_t database::async_emission_calculations(int w_start, int w_end)
     em_log << "emission for the period calculated in " << (emission_completed - activity_completed).count() << std::endl;
     em_log.close();
 
-    return result;
+    return emission_value;
 }
 
 void database::emission_start_async(int window_start_block, int window_end_block)
@@ -794,6 +798,72 @@ void database::emission_start_async(int window_start_block, int window_end_block
 void database::emission_save_results()
 {
     std::cout << "emission_save_results start" << std::endl;
+
+    //wait for results until they are ready
+    if (_future_emission_value.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+    {
+        std::cout << "calculating emission ..." << std::endl;
+    }
+
+    //get the result from async
+    uint64_t current_emission = _future_emission_value.get();
+
+    //open emission log
+    std::ofstream em_log;
+    em_log.open( "emission.log", std::ofstream::app );
+    em_log << "started saving results" << std::endl;
+    auto time_start = std::chrono::high_resolution_clock::now();
+
+    //prepare gravity index calculator
+    singularity::gravity_index_calculator gic( _activity_weight_snapshot, _current_supply_snapshot);
+
+    //loop through all accounts
+    share_type distributed_current_emission(0);
+    const auto& account_idx = get_index_type<account_index>().indices().get<by_name>();
+    for( auto account = account_idx.begin(); account != account_idx.end(); account++ )
+    {
+        //calculate and set the emission value if we find the balance in the snapshot
+        auto account_balance = _balances_snapshot.find(account->name);
+        if(account_balance != _balances_snapshot.end())
+        {
+            //calculate account emission from the gravity index
+            double acc_emission = gic.calculate_index(account_balance->second, account->activity_index) * current_emission;
+
+            //increment distributed emission
+            distributed_current_emission += acc_emission;
+
+
+            //adjust the balance and set "emission" property
+            adjust_balance( account->id, asset( acc_emission, asset_id_type(0) ) );
+            modify( *account, [&]( account_object& obj )
+            {
+                obj.emission_volume = acc_emission;
+            });
+
+            //save entry to log
+            em_log << account->name << ";" <<
+                std::to_string( account_balance->second ) << ";" <<
+                std::to_string( account_balance->second / _current_supply_snapshot ) << ";" <<
+                account->activity_index << ";" <<
+                std::to_string( account_balance->second / _current_supply_snapshot * ( 1 - _activity_weight_snapshot ) +
+                                account->activity_index * _activity_weight_snapshot ) << ";" <<
+                std::to_string( acc_emission ) << std::endl;
+        }
+        //set emission to zero if there is no balance in the snapshot
+        else
+        {
+            modify( *account, [&]( account_object& obj )
+            {
+                obj.emission_volume = 0;
+            });
+            em_log << account->name << ";" << 0 << std::endl;
+        }
+    }
+
+    auto time_end = std::chrono::high_resolution_clock::now();
+    em_log << "saving results completed in " << (time_start - time_end).count() << std::endl;
+    em_log.close();
+
     std::cout << "emission_save_results end" << std::endl;
 }
   
