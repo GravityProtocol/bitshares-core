@@ -568,8 +568,7 @@ void database:: activity_save_parameters()
 {
     std::cout << "activity_save_parameters start" << std::endl;
 
-    singularity::activity_index_calculator aic(_activity_parameters);
-    _activity_parameters = aic.get_parameters();
+    _activity_parameters = singularity::parameters_t();
     _activity_parameters.account_amount_threshold = get_global_properties().parameters.account_amount_threshold;
     _activity_parameters.transaction_amount_threshold = get_global_properties().parameters.transaction_amount_threshold;
     _activity_parameters.token_usd_rate = 0.1;
@@ -692,7 +691,87 @@ void database::activity_save_results()
 void database::emission_save_parameters()
 {
     std::cout << "emission_save_parameters start" << std::endl;
+
+    //save emission parameters
+    _emission_parameters = singularity::emission_parameters_t();
+    _emission_parameters.emission_scale = get_global_properties().parameters.emission_scale * GRAPHENE_BLOCKCHAIN_PRECISION;
+    _emission_parameters.delay_koefficient = get_global_properties().parameters.delay_koefficient;
+    _emission_parameters.year_emission_limit = get_global_properties().parameters.year_emission_limit;
+    _emission_parameters.emission_event_count_per_year = (3600 * 24 * 365) / (get_global_properties().parameters.emission_period * get_global_properties().parameters.block_interval);
+
+    //save all balances
+    std::ofstream act_log;
+    act_log.open( "emission_balances.log", std::ofstream::app );
+    act_log << "saving emission balances" << std::endl;
+    _balances_snapshot.clear();
+    const auto& account_idx = get_index_type<account_index>().indices().get<by_name>();
+    for( auto account = account_idx.begin(); account != account_idx.end(); account++ )
+    {
+        auto& balance_index = get_index_type<account_balance_index>().indices().get<by_account_asset>();
+        auto itr = balance_index.find( boost::make_tuple( account->id, asset_id_type(0)) );
+        if( itr != balance_index.end() )
+        {
+            _balances_snapshot[account->name] = itr->balance.value;
+            act_log << account->name << ";" << _balances_snapshot[account->name] << std::endl;
+        }
+    }
+
+    //save current supply
+    const asset_object& core = asset_id_type(0)(*this);
+    const asset_dynamic_data_object& core_dd = core.dynamic_asset_data_id(*this);
+    _current_supply_snapshot = core_dd.current_supply.value;
+    act_log << "core asset current supply = " << _current_supply_snapshot << std::endl;
+
     std::cout << "emission_save_parameters end" << std::endl;
+}
+
+uint64_t database::async_emission_calculations(int w_start, int w_end)
+{
+    //open emission log
+    std::ofstream em_log;
+    em_log.open( "emission.log", std::ofstream::app );
+    em_log << "emission calculation started [" << w_start << "," << w_end << "]" << std::endl;
+    auto time_start = std::chrono::high_resolution_clock::now();
+
+    //iterate the block history from start to end
+    for (uint32_t i = w_start; i <= w_end; i++)
+    {
+        //TODO thread safety ????
+        block_info b_info = _block_history[i];
+
+        //add transactions from block
+        _activity_period.add_block(b_info.transactions);
+    }
+
+    auto blocks_completed = std::chrono::high_resolution_clock::now();
+    em_log << "blocks added in " << (blocks_completed - time_start).count() << std::endl;
+
+    //calculate network activity for the period
+    uint32_t current_activity = _activity_period.get_activity( );
+    em_log << "last peak activity = " << _last_peak_activity << std::endl;
+    em_log << "current activity = " << current_activity << std::endl;
+
+    auto activity_completed = std::chrono::high_resolution_clock::now();
+    em_log << "activity for the period calculated in " << (activity_completed - blocks_completed).count() << std::endl;
+
+    //set saved parameters
+    _emission.set_parameters(_emission_parameters);
+
+    //calculate the total emission
+    auto result = _emission.calculate( get_global_properties().parameters.current_emission_volume, _activity_period );
+
+    //save the emission state
+    _emission_state = _emission.get_emission_state();
+
+    //update the last peak activity
+    if( current_activity > _last_peak_activity )
+        _last_peak_activity = current_activity;
+
+    auto emission_completed = std::chrono::high_resolution_clock::now();
+    em_log << "emission for the period calculated in " << (emission_completed - activity_completed).count() << std::endl;
+    em_log.close();
+
+    return result;
 }
 
 void database::emission_start_async(int window_start_block, int window_end_block)
@@ -700,6 +779,15 @@ void database::emission_start_async(int window_start_block, int window_end_block
     std::cout << "emission_start_async start" << std::endl;
     std::cout << "emission window [" << window_start_block << ", "
                                      << window_end_block << "]" << std::endl;
+
+    _future_emission_value = std::async(
+            std::launch::async,
+            [&](int w_start, int w_end){
+                return async_emission_calculations(w_start, w_end);
+               },
+            window_start_block,
+            window_end_block);
+
     std::cout << "emission_start_async end" << std::endl;
 }
 

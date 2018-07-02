@@ -487,6 +487,7 @@ namespace graphene { namespace chain {
          void activity_start_async(int window_start_block, int window_end_block);
          void activity_save_results();
          void emission_save_parameters();
+         uint64_t async_emission_calculations(int w_start, int w_end);
          void emission_start_async(int window_start_block, int window_end_block);
          void emission_save_results();
   
@@ -550,16 +551,17 @@ namespace graphene { namespace chain {
          uint64_t                          _transactions_count = 0;
          std::set<uint32_t>                _active_accounts;
   
-         singularity::parameters_t                  _activity_parameters;
-         singularity::activity_index_calculator     _ic;
-  
-         uint32_t                                   _last_peak_activity = 0;
+         singularity::parameters_t                               _activity_parameters;
+         std::future<singularity::account_activity_index_map_t>  _future_activity_index;
+
          singularity::emission_parameters_t         _emission_parameters;
+         std::map<std::string, double>              _balances_snapshot;
+         uint64_t                                   _current_supply_snapshot;
+         uint32_t                                   _last_peak_activity = 0;
+         std::future<uint64_t>                      _future_emission_value;
          singularity::emission_calculator           _emission;
          singularity::activity_period               _activity_period;
          singularity::emission_state_t              _emission_state;
-
-         std::future<singularity::account_activity_index_map_t>  _future_activity_index;
    };
   
    namespace detail
