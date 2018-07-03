@@ -860,6 +860,18 @@ void database::emission_save_results()
         }
     }
 
+    //increase current_supply value
+    modify( core_dd, [&]( asset_dynamic_data_object& obj )
+    {
+        obj.current_supply += distributed_current_emission;
+    });
+
+    //update current_emission_volume
+    modify( get_global_properties(), [&](global_property_object& p )
+    {
+        p.parameters.current_emission_volume = distributed_current_emission.value;
+    });
+
     auto time_end = std::chrono::high_resolution_clock::now();
     em_log << "saving results completed in " << (time_end - time_start).count() << std::endl;
     em_log.close();
