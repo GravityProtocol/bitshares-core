@@ -682,7 +682,7 @@ void database::activity_save_results()
     }
 
     auto time_end = std::chrono::high_resolution_clock::now();
-    act_log << "saving results completed in " << (time_start - time_end).count() << std::endl;
+    act_log << "saving results completed in " << (time_end - time_start).count() << std::endl;
     act_log.close();
 
     std::cout << "activity_save_results end" << std::endl;
@@ -861,7 +861,7 @@ void database::emission_save_results()
     }
 
     auto time_end = std::chrono::high_resolution_clock::now();
-    em_log << "saving results completed in " << (time_start - time_end).count() << std::endl;
+    em_log << "saving results completed in " << (time_end - time_start).count() << std::endl;
     em_log.close();
 
     std::cout << "emission_save_results end" << std::endl;
