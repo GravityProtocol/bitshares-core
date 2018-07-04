@@ -861,6 +861,8 @@ void database::emission_save_results()
     }
 
     //increase current_supply value
+    const asset_object& core = asset_id_type(0)(*this);
+    const asset_dynamic_data_object& core_dd = core.dynamic_asset_data_id(*this);
     modify( core_dd, [&]( asset_dynamic_data_object& obj )
     {
         obj.current_supply += distributed_current_emission;
