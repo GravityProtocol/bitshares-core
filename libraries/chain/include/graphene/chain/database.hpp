@@ -450,6 +450,7 @@ namespace graphene { namespace chain {
              double token_usd_rate;
          };
 
+         //historical data for delayed calculations of the activity and emission
          std::map<uint32_t, block_info> _block_history;
 
          // these were formerly private, but they have a fairly well-defined API, so let's make them public
@@ -553,6 +554,7 @@ namespace graphene { namespace chain {
   
          singularity::parameters_t                               _activity_parameters;
          std::future<singularity::account_activity_index_map_t>  _future_activity_index;
+         std::set<uint32_t>                                      _activity_calculation_blocks;
 
          singularity::emission_parameters_t         _emission_parameters;
          double                                     _activity_weight_snapshot;
@@ -560,6 +562,8 @@ namespace graphene { namespace chain {
          uint64_t                                   _current_supply_snapshot;
          uint32_t                                   _last_peak_activity = 0;
          std::future<uint64_t>                      _future_emission_value;
+         std::set<uint32_t>                         _emission_calculation_blocks;
+
          singularity::emission_calculator           _emission;
          singularity::activity_period               _activity_period;
          singularity::emission_state_t              _emission_state;

@@ -626,6 +626,16 @@ void database::activity_start_async(int window_start_block, int window_end_block
     std::cout << "activity window [" << window_start_block << ", "
                                      << window_end_block << "]" << std::endl;
 
+    //don't start calculations if they are marked as started
+    if(_activity_calculation_blocks.find(window_end_block) != _activity_calculation_blocks.end())
+    {
+        std::cout << "activity calculations already been started for block " << window_end_block << std::endl;
+        return;
+    }
+
+    //mark calculations as started
+    _activity_calculation_blocks.insert(window_end_block);
+
     _future_activity_index = std::async(
             std::launch::async,
             [&](int w_start, int w_end){
@@ -783,6 +793,16 @@ void database::emission_start_async(int window_start_block, int window_end_block
     std::cout << "emission_start_async start" << std::endl;
     std::cout << "emission window [" << window_start_block << ", "
                                      << window_end_block << "]" << std::endl;
+
+    //don't start calculations if they are marked as started
+    if(_emission_calculation_blocks.find(window_end_block) != _emission_calculation_blocks.end())
+    {
+        std::cout << "emission calculations already been started for block " << window_end_block << std::endl;
+        return;
+    }
+
+    //mark calculations as started
+    _emission_calculation_blocks.insert(window_end_block);
 
     _future_emission_value = std::async(
             std::launch::async,
