@@ -554,7 +554,7 @@ void database::_apply_block( const signed_block& next_block )
 
     if (next_block_num == _activity_start_async_block)
     {
-       int32_t window_end_block = _last_activity_processing_block;
+       int32_t window_end_block = _current_activity_processing_block;
        int32_t window_start_block = window_end_block - params.transaction_history_window + 1;
        if (window_start_block < 1) window_start_block = 1;
 
@@ -584,7 +584,7 @@ void database::_apply_block( const signed_block& next_block )
 
     if (next_block_num == _emission_start_async_block)
     {
-       int32_t window_end_block = _last_emission_processing_block;
+       int32_t window_end_block = _current_emission_processing_block;
        int32_t window_start_block = window_end_block - params.emission_period + 1;
        if (window_start_block < 1) window_start_block = 1;
 
