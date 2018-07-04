@@ -548,7 +548,8 @@ void database::_apply_block( const signed_block& next_block )
         std::cout << "activity calculations will start at block " << _activity_start_async_block << std::endl;
         _activity_save_async_result_block = _activity_start_async_block + params.async_calculation_interval;
         std::cout << "activity results will be saved at block " << _activity_save_async_result_block << std::endl;
-        _last_activity_processing_block = next_block_num;
+
+        _current_activity_processing_block = next_block_num;
     }
 
     if (next_block_num == _activity_start_async_block)
@@ -563,6 +564,8 @@ void database::_apply_block( const signed_block& next_block )
     if (next_block_num == _activity_save_async_result_block)
     {
        activity_save_results();
+
+        _last_activity_processing_block = _current_activity_processing_block;
     }
 
     //emission triggers
@@ -575,7 +578,8 @@ void database::_apply_block( const signed_block& next_block )
         std::cout << "emission calculations will start at block " << _emission_start_async_block << std::endl;
         _emission_save_async_result_block = _emission_start_async_block + params.async_calculation_interval;
         std::cout << "emission results will be saved at block " << _emission_save_async_result_block << std::endl;
-        _last_emission_processing_block = next_block_num;
+
+        _current_emission_processing_block = next_block_num;
     }
 
     if (next_block_num == _emission_start_async_block)
@@ -590,6 +594,8 @@ void database::_apply_block( const signed_block& next_block )
     if (next_block_num == _emission_save_async_result_block)
     {
        emission_save_results();
+
+       _last_emission_processing_block = _current_emission_processing_block;
     }
 
     std::cout << "end gravity section" << std::endl;

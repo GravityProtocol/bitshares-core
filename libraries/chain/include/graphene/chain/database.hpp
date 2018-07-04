@@ -432,10 +432,12 @@ namespace graphene { namespace chain {
   
        public:   
          uint32_t                                   _last_activity_processing_block = 0;
+         uint32_t                                   _current_activity_processing_block = 0;
          uint32_t                                   _activity_start_async_block = 0;
          uint32_t                                   _activity_save_async_result_block = 0;
 
          uint32_t                                   _last_emission_processing_block = 0;
+         uint32_t                                   _current_emission_processing_block = 0;
          uint32_t                                   _emission_start_async_block = 0;
          uint32_t                                   _emission_save_async_result_block = 0;
 
