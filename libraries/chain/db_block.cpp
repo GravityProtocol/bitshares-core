@@ -545,7 +545,9 @@ void database::_apply_block( const signed_block& next_block )
         activity_save_parameters();
 
         _activity_start_async_block = next_block_num + params.async_calculation_delay;
+        std::cout << "activity calculations will start at block " << _activity_start_async_block << std::endl;
         _activity_save_async_result_block = _activity_start_async_block + params.async_calculation_interval;
+        std::cout << "activity results will be saved at block " << _activity_save_async_result_block << std::endl;
         _last_activity_processing_block = next_block_num;
     }
 
@@ -570,7 +572,9 @@ void database::_apply_block( const signed_block& next_block )
         emission_save_parameters();
 
         _emission_start_async_block = next_block_num + params.async_calculation_delay;
+        std::cout << "emission calculations will start at block " << _emission_start_async_block << std::endl;
         _emission_save_async_result_block = _emission_start_async_block + params.async_calculation_interval;
+        std::cout << "emission results will be saved at block " << _emission_save_async_result_block << std::endl;
         _last_emission_processing_block = next_block_num;
     }
 
