@@ -602,6 +602,22 @@ singularity::account_activity_index_map_t database::async_activity_calculations(
 
         //add transactions from block
         aic.add_block(b_info.transactions);
+
+        //log input info
+        act_log << "block " << i << " params (" <<
+               b_info.transaction_amount_threshold << ";" <<
+               b_info.account_amount_threshold << ";" <<
+               b_info.token_usd_rate << ")" << std::endl;
+        for (singularity::transaction_t const& tr: b_info.transactions)
+        {
+            act_log << tr.source_account << ";"
+                   << tr.target_account << ";"
+                   << tr.amount << ";"
+                   << tr.comission << ";"
+                   << tr.source_account_balance << ";"
+                   << tr.target_account_balance << ";"
+                   << tr.timestamp << std::endl;
+        }
     }
 
     auto blocks_completed = std::chrono::high_resolution_clock::now();
@@ -754,6 +770,22 @@ uint64_t database::async_emission_calculations(int w_start, int w_end)
 
         //add transactions from block
         _activity_period.add_block(b_info.transactions);
+
+        //log input info
+        em_log << "block " << i << " params (" <<
+               b_info.transaction_amount_threshold << ";" <<
+               b_info.account_amount_threshold << ";" <<
+               b_info.token_usd_rate << ")" << std::endl;
+        for (singularity::transaction_t const& tr: b_info.transactions)
+        {
+            em_log << tr.source_account << ";"
+                   << tr.target_account << ";"
+                   << tr.amount << ";"
+                   << tr.comission << ";"
+                   << tr.source_account_balance << ";"
+                   << tr.target_account_balance << ";"
+                   << tr.timestamp << std::endl;
+        }
     }
 
     auto blocks_completed = std::chrono::high_resolution_clock::now();
