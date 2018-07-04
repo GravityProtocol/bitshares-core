@@ -38,10 +38,9 @@ RUN \
 
     #
     # Compile
-    # FIXME: doesn't build in release mode
-    #  -DCMAKE_BUILD_TYPE=Release \
     echo && echo '------ Compile ------' && \
     cmake \
+      -DCMAKE_BUILD_TYPE=Release \
       . && \
     make witness_node cli_wallet && \
     make install && \
