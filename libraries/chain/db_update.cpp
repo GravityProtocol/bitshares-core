@@ -642,15 +642,12 @@ void database::activity_start_async(int window_start_block, int window_end_block
     std::cout << "activity window [" << window_start_block << ", "
                                      << window_end_block << "]" << std::endl;
 
-    //don't start calculations if they are marked as started
-    if(_activity_calculation_blocks.find(window_end_block) != _activity_calculation_blocks.end())
+    //don't start calculation if it is already running
+    if(_activity_calculation_is_running)
     {
-        std::cout << "activity calculations already been started for block " << window_end_block << std::endl;
+        std::cout << "activity calculation is already running" << std::endl;
         return;
     }
-
-    //mark calculations as started
-    _activity_calculation_blocks.insert(window_end_block);
 
     _future_activity_index = std::async(
             std::launch::async,
@@ -660,6 +657,9 @@ void database::activity_start_async(int window_start_block, int window_end_block
             window_start_block,
             window_end_block);
 
+    //mark calculation as running
+    _activity_calculation_is_running = true;
+
     std::cout << "activity_start_async end" << std::endl;
 }
 
@@ -667,14 +667,20 @@ void database::activity_save_results()
 {
     std::cout << "activity_save_results start" << std::endl;
 
-    //wait for results until they are ready
-    if (_future_activity_index.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+    //get results from future only if calculation is marked as running
+    if(_activity_calculation_is_running)
     {
-        std::cout << "calculating activity index ..." << std::endl;
-    }
+        //wait for results until they are ready
+        if (_future_activity_index.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+            std::cout << "calculating activity index ..." << std::endl;
+        }
 
-    //get the result from async
-    singularity::account_activity_index_map_t activity_index = _future_activity_index.get();
+        //get the result from async
+        _activity_index = _future_activity_index.get();
+
+        //mark the calculation as not running
+        _activity_calculation_is_running = false;
+    }
 
     //open activity log
     std::ofstream act_log;
@@ -687,8 +693,8 @@ void database::activity_save_results()
     for( auto itr = idx.begin( ); itr != idx.end( ); itr++ )
     {
         //set account activity_index if we find the value
-        auto ai_result = activity_index.find(itr->name);
-        if(ai_result != activity_index.end())
+        auto ai_result = _activity_index.find(itr->name);
+        if(ai_result != _activity_index.end())
         {
             modify( *itr, [&ai_result]( account_object& a )
             {
@@ -826,15 +832,12 @@ void database::emission_start_async(int window_start_block, int window_end_block
     std::cout << "emission window [" << window_start_block << ", "
                                      << window_end_block << "]" << std::endl;
 
-    //don't start calculations if they are marked as started
-    if(_emission_calculation_blocks.find(window_end_block) != _emission_calculation_blocks.end())
+    //don't start calculation if it is already running
+    if(_emission_calculation_is_running)
     {
-        std::cout << "emission calculations already been started for block " << window_end_block << std::endl;
+        std::cout << "emission calculation is already running" << std::endl;
         return;
     }
-
-    //mark calculations as started
-    _emission_calculation_blocks.insert(window_end_block);
 
     _future_emission_value = std::async(
             std::launch::async,
@@ -844,6 +847,9 @@ void database::emission_start_async(int window_start_block, int window_end_block
             window_start_block,
             window_end_block);
 
+    //mark calculation as running
+    _emission_calculation_is_running = true;
+
     std::cout << "emission_start_async end" << std::endl;
 }
 
@@ -851,14 +857,20 @@ void database::emission_save_results()
 {
     std::cout << "emission_save_results start" << std::endl;
 
-    //wait for results until they are ready
-    if (_future_emission_value.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+    //get results from future only if calculation is marked as running
+    if(_emission_calculation_is_running)
     {
-        std::cout << "calculating emission ..." << std::endl;
-    }
+        //wait for results until they are ready
+        if (_future_emission_value.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+            std::cout << "calculating emission ..." << std::endl;
+        }
 
-    //get the result from async
-    uint64_t current_emission = _future_emission_value.get();
+        //get the result from async
+        _emission_value = _future_emission_value.get();
+
+        //mark the calculation as not running
+        _emission_calculation_is_running = false;
+    }
 
     //open emission log
     std::ofstream em_log;
@@ -879,7 +891,7 @@ void database::emission_save_results()
         if(account_balance != _balances_snapshot.end())
         {
             //calculate account emission from the gravity index
-            double acc_emission = gic.calculate_index(account_balance->second, account->activity_index) * current_emission;
+            double acc_emission = gic.calculate_index(account_balance->second, account->activity_index) * _emission_value;
 
             //increment distributed emission
             distributed_current_emission += acc_emission;
