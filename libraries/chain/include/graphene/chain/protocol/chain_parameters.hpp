@@ -151,9 +151,9 @@ FC_REFLECT( graphene::chain::chain_parameters,
             (delay_koefficient)
             (account_amount_threshold)
             (transaction_amount_threshold)
-            (transaction_history_window)
-            (async_calculation_delay)
-            (async_calculation_interval)
+//            (transaction_history_window)
+//            (async_calculation_delay)
+//            (async_calculation_interval)
             (extensions)
           )
           
