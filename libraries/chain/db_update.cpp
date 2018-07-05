@@ -482,8 +482,6 @@ void database::update_withdraw_permissions()
 
 void database::collect_block_data(const signed_block& next_block)
 {
-    std::cout << "collect_block_data start" << std::endl;
-
     uint32_t next_block_num = next_block.block_num();
 
     //erase value for this block, to prevent influence from another fork
@@ -554,8 +552,6 @@ void database::collect_block_data(const signed_block& next_block)
     }
 
     bi_log.close();
-
-    std::cout << "collect_block_data end" << std::endl;
 }
 
 void database::clear_old_block_history()
@@ -590,6 +586,9 @@ singularity::account_activity_index_map_t database::async_activity_calculations(
     //iterate the block history from start to end
     for (uint32_t i = w_start; i <= w_end; i++)
     {
+        if(i % 86400 == 0)
+            std::cout << "reading from history block " << i << std::endl;
+
         //TODO thread safety ????
         block_info b_info = _block_history[i];
 
@@ -602,22 +601,6 @@ singularity::account_activity_index_map_t database::async_activity_calculations(
 
         //add transactions from block
         aic.add_block(b_info.transactions);
-
-        //log input info
-        act_log << "block " << i << " params (" <<
-               b_info.transaction_amount_threshold << ";" <<
-               b_info.account_amount_threshold << ";" <<
-               b_info.token_usd_rate << ")" << std::endl;
-        for (singularity::transaction_t const& tr: b_info.transactions)
-        {
-            act_log << tr.source_account << ";"
-                   << tr.target_account << ";"
-                   << tr.amount << ";"
-                   << tr.comission << ";"
-                   << tr.source_account_balance << ";"
-                   << tr.target_account_balance << ";"
-                   << tr.timestamp << std::endl;
-        }
     }
 
     auto blocks_completed = std::chrono::high_resolution_clock::now();
@@ -709,7 +692,6 @@ void database::activity_save_results()
             {
                 a.activity_index = 0;
             });
-            act_log << itr->name << ";" << 0 << std::endl;
         }
     }
 
@@ -776,22 +758,6 @@ uint64_t database::async_emission_calculations(int w_start, int w_end)
 
         //add transactions from block
         _activity_period.add_block(b_info.transactions);
-
-        //log input info
-        em_log << "block " << i << " params (" <<
-               b_info.transaction_amount_threshold << ";" <<
-               b_info.account_amount_threshold << ";" <<
-               b_info.token_usd_rate << ")" << std::endl;
-        for (singularity::transaction_t const& tr: b_info.transactions)
-        {
-            em_log << tr.source_account << ";"
-                   << tr.target_account << ";"
-                   << tr.amount << ";"
-                   << tr.comission << ";"
-                   << tr.source_account_balance << ";"
-                   << tr.target_account_balance << ";"
-                   << tr.timestamp << std::endl;
-        }
     }
 
     auto blocks_completed = std::chrono::high_resolution_clock::now();
@@ -923,7 +889,6 @@ void database::emission_save_results()
             {
                 obj.emission_volume = 0;
             });
-            em_log << account->name << ";" << 0 << std::endl;
         }
     }
 

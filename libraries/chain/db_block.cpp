@@ -532,8 +532,6 @@ void database::_apply_block( const signed_block& next_block )
    update_expired_feeds();
    update_withdraw_permissions();
 
-    std::cout << "gravity section" << std::endl;
-
     collect_block_data(next_block);
 
     auto params = get_global_properties().parameters;
@@ -597,8 +595,6 @@ void database::_apply_block( const signed_block& next_block )
 
        _last_emission_processing_block = _current_emission_processing_block;
     }
-
-    std::cout << "end gravity section" << std::endl;
    
    // n.b., update_maintenance_flag() happens this late
    // because get_slot_time() / get_slot_at_time() is needed above
