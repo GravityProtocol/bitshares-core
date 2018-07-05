@@ -91,7 +91,7 @@ namespace graphene { namespace chain {
 
       uint32_t                year_emission_limit                 = 100;
 
-      uint32_t                transaction_history_window          = 2419200;
+      uint32_t                transaction_history_window          = 4838400;
       uint32_t                async_calculation_delay             = 1000;
       uint32_t                async_calculation_interval          = 2000;
 
