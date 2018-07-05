@@ -819,6 +819,9 @@ uint64_t database::async_emission_calculations(int w_start, int w_end)
     if( current_activity > _last_peak_activity )
         _last_peak_activity = current_activity;
 
+    //clear current activity period
+    _activity_period.clear();
+
     auto emission_completed = std::chrono::high_resolution_clock::now();
     em_log << "emission for the period calculated in " << (emission_completed - activity_completed).count() << std::endl;
     em_log.close();
