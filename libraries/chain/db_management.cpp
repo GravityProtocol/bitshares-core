@@ -36,9 +36,8 @@
 
 namespace graphene { namespace chain {
 
-database::database() : _last_activity_processing_time( 0 ), 
-                       _last_emission_processing_time( 0 ),
-                       _ic( _activity_parameters ),
+database::database() : _last_activity_processing_block( 0 ),
+                       _last_emission_processing_block( 0 ),
                        _emission( _emission_parameters, _emission_state )
 {
    initialize_indexes();

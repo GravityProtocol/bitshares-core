@@ -144,8 +144,6 @@ bool database::_push_block(const signed_block& new_block)
          //Only switch forks if new_head is actually higher than head
          if( new_head->data.block_num() > head_block_num() )
          {
-           _pending_transactions.clear();
-
             wlog( "Switching to fork: ${id}", ("id",new_head->data.id()) );
             auto branches = _fork_db.fetch_branch_from(new_head->data.id(), head_block_id());
 
@@ -489,7 +487,10 @@ void database::apply_block( const signed_block& next_block, uint32_t skip )
 }
 
 void database::_apply_block( const signed_block& next_block )
-{ try {
+{
+   std::cout << "apply_block " << next_block.block_num() << std::endl;
+
+   try {
    uint32_t next_block_num = next_block.block_num();
    uint32_t skip = get_node_properties().skip_flags;
   _applied_ops.clear();
@@ -506,33 +507,6 @@ void database::_apply_block( const signed_block& next_block )
 
    for( const auto& trx : next_block.transactions )
    {
-      std::ofstream ifs;
-      ifs.open( "blocks.log", std::ofstream::app );
-      if( ifs.is_open( ) )
-        ifs << "--------------------------------------------------------------------------------------------------------" << std::endl;
-
-      ifs << " trx - ref_block_num = " << trx.ref_block_num << std::endl;
-      ifs << " trx - ref_block_prefix = " << trx.ref_block_prefix << std::endl;
-      ifs << " trx - digest = " << trx.digest().str() << std::endl;
-      ifs << " trx - id = " << trx.id().str() << std::endl;
-
-      ifs.close();
-
-      std::stringstream ss;
-      ss << " " << trx.ref_block_num << ":" << trx.ref_block_prefix << " digest = " << trx.digest().str() << " id = " << trx.id().str() << std::endl;
-
-     for( int i = 0; i < trx.operations.size(); i++ )
-      if( trx.operations[i].which() == operation::tag< transfer_operation >::value )
-      { 
-        auto it = _processed_transactions.find( trx.id().str() );
-        if( it == _processed_transactions.end() )
-        {
-          _pending_transactions[trx.id().str()] = trx.operations[i].get<transfer_operation>( );
-          _processed_transactions[trx.id().str()] = true;
-        }
-      }
-       // _pending_transactions.push_back( make_pair( ss.str( ), trx.operations[i].get<transfer_operation>( ) ) );
-
       /* We do not need to push the undo state for each transaction
        * because they either all apply and are valid or the
        * entire block fails to apply.  We only need an "undo" state
@@ -558,10 +532,69 @@ void database::_apply_block( const signed_block& next_block )
    update_expired_feeds();
    update_withdraw_permissions();
 
-  std::cout << " fork = " << is_known_block( next_block.id( ) ) << std::endl;
+    collect_block_data(next_block);
 
-   process_poi( next_block.block_num() );
-   process_gravity_emission( next_block.block_num() );
+    auto params = get_global_properties().parameters;
+
+    //activity triggers
+
+    if (next_block_num ==_last_activity_processing_block + params.activity_period )
+    {
+        activity_save_parameters();
+
+        _activity_start_async_block = next_block_num + params.async_calculation_delay;
+        std::cout << "activity calculations will start at block " << _activity_start_async_block << std::endl;
+        _activity_save_async_result_block = _activity_start_async_block + params.async_calculation_interval;
+        std::cout << "activity results will be saved at block " << _activity_save_async_result_block << std::endl;
+
+        _current_activity_processing_block = next_block_num;
+    }
+
+    if (next_block_num == _activity_start_async_block)
+    {
+       int32_t window_end_block = _current_activity_processing_block;
+       int32_t window_start_block = window_end_block - params.transaction_history_window + 1;
+       if (window_start_block < 1) window_start_block = 1;
+
+       activity_start_async(window_start_block, window_end_block);
+    }
+
+    if (next_block_num == _activity_save_async_result_block)
+    {
+       activity_save_results();
+
+        _last_activity_processing_block = _current_activity_processing_block;
+    }
+
+    //emission triggers
+
+    if (next_block_num ==_last_emission_processing_block + params.emission_period )
+    {
+        emission_save_parameters();
+
+        _emission_start_async_block = next_block_num + params.async_calculation_delay;
+        std::cout << "emission calculations will start at block " << _emission_start_async_block << std::endl;
+        _emission_save_async_result_block = _emission_start_async_block + params.async_calculation_interval;
+        std::cout << "emission results will be saved at block " << _emission_save_async_result_block << std::endl;
+
+        _current_emission_processing_block = next_block_num;
+    }
+
+    if (next_block_num == _emission_start_async_block)
+    {
+       int32_t window_end_block = _current_emission_processing_block;
+       int32_t window_start_block = window_end_block - params.emission_period + 1;
+       if (window_start_block < 1) window_start_block = 1;
+
+       emission_start_async(window_start_block, window_end_block);
+    }
+
+    if (next_block_num == _emission_save_async_result_block)
+    {
+       emission_save_results();
+
+       _last_emission_processing_block = _current_emission_processing_block;
+    }
    
    // n.b., update_maintenance_flag() happens this late
    // because get_slot_time() / get_slot_at_time() is needed above

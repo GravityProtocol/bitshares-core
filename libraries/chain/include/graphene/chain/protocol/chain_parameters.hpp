@@ -91,6 +91,10 @@ namespace graphene { namespace chain {
 
       uint32_t                year_emission_limit                 = 100;
 
+      uint32_t                transaction_history_window          = 4838400;
+      uint32_t                async_calculation_delay             = 1000;
+      uint32_t                async_calculation_interval          = 2000;
+
       typedef static_variant<ext::coin_seconds_as_fees_options>  parameter_extension;
       typedef flat_set<parameter_extension> extensions_type;
 
@@ -147,6 +151,9 @@ FC_REFLECT( graphene::chain::chain_parameters,
             (delay_koefficient)
             (account_amount_threshold)
             (transaction_amount_threshold)
+//            (transaction_history_window)
+//            (async_calculation_delay)
+//            (async_calculation_interval)
             (extensions)
           )
           

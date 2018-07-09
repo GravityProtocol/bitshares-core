@@ -47,6 +47,8 @@
   
 #include <map>
 #include <boost/functional/hash.hpp>
+#include <future>
+#include <atomic>
   
 namespace graphene { namespace chain {
    using graphene::db::abstract_object;
@@ -429,10 +431,30 @@ namespace graphene { namespace chain {
          //////////////////// db_block.cpp ////////////////////
   
        public:   
-         uint32_t                                   _last_activity_processing_time = 0;
-         uint32_t                                   _last_emission_processing_time = 0;
-         std::map<std::string, transfer_operation>  _pending_transactions;
-         std::map<std::string, bool>                _processed_transactions;
+         uint32_t                                   _last_activity_processing_block = 0;
+         uint32_t                                   _current_activity_processing_block = 0;
+         uint32_t                                   _activity_start_async_block = 0;
+         uint32_t                                   _activity_save_async_result_block = 0;
+
+         uint32_t                                   _last_emission_processing_block = 0;
+         uint32_t                                   _current_emission_processing_block = 0;
+         uint32_t                                   _emission_start_async_block = 0;
+         uint32_t                                   _emission_save_async_result_block = 0;
+
+         struct block_info
+         {
+             //all transactions in block
+             std::vector<singularity::transaction_t> transactions;
+
+             //threshold parameters
+             uint transaction_amount_threshold;
+             uint account_amount_threshold;
+             double token_usd_rate;
+         };
+
+         //historical data for delayed calculations of the activity and emission
+         std::map<uint32_t, block_info> _block_history;
+
          // these were formerly private, but they have a fairly well-defined API, so let's make them public
          void                  apply_block( const signed_block& next_block, uint32_t skip = skip_nothing );
          processed_transaction apply_transaction( const signed_transaction& trx, uint32_t skip = skip_nothing );
@@ -460,9 +482,17 @@ namespace graphene { namespace chain {
          void update_maintenance_flag( bool new_maintenance_flag );
          void update_withdraw_permissions();
          bool check_for_blackswan( const asset_object& mia, bool enable_black_swan = true );
-         void process_credit_stories();
-         void process_gravity_emission( const uint32_t& block_num );
-         void process_poi( const uint32_t& block_num );
+
+         void collect_block_data(const signed_block& next_block);
+         void clear_old_block_history();
+         void activity_save_parameters();
+         singularity::account_activity_index_map_t async_activity_calculations(int w_start, int w_end);
+         void activity_start_async(int window_start_block, int window_end_block);
+         void activity_save_results();
+         void emission_save_parameters();
+         uint64_t async_emission_calculations(int w_start, int w_end);
+         void emission_start_async(int window_start_block, int window_end_block);
+         void emission_save_results();
   
          ///Steps performed only at maintenance intervals
          ///@{
@@ -524,11 +554,20 @@ namespace graphene { namespace chain {
          uint64_t                          _transactions_count = 0;
          std::set<uint32_t>                _active_accounts;
   
-         singularity::parameters_t                  _activity_parameters;
-         singularity::activity_index_calculator     _ic;
-  
-         uint32_t                                   _last_peak_activity = 0;
+         singularity::parameters_t                               _activity_parameters;
+         std::future<singularity::account_activity_index_map_t>  _future_activity_index;
+         singularity::account_activity_index_map_t               _activity_index;
+         bool                                                    _activity_calculation_is_running;
+
          singularity::emission_parameters_t         _emission_parameters;
+         double                                     _activity_weight_snapshot;
+         std::map<std::string, double>              _balances_snapshot;
+         uint64_t                                   _current_supply_snapshot;
+         uint32_t                                   _last_peak_activity = 0;
+         std::future<uint64_t>                      _future_emission_value;
+         uint64_t                                   _emission_value;
+         bool                                       _emission_calculation_is_running;
+
          singularity::emission_calculator           _emission;
          singularity::activity_period               _activity_period;
          singularity::emission_state_t              _emission_state;

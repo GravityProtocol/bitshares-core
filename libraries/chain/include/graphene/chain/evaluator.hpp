@@ -172,8 +172,6 @@ namespace graphene { namespace chain {
 
          db_adjust_balance(op.fee_payer(), -fee_from_account);
 
-         std::cout << "CALLED ONCE ONCE ONCE!!!!!!!!!!!!!" << std::endl;
-
          return result;
       }
    };

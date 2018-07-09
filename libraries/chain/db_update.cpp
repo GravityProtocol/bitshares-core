@@ -40,8 +40,9 @@
   
 #include <fc/uint128.hpp>
   
-#include <time.h>
+#include <chrono>
 #include <cmath>
+#include <time.h>
   
 namespace graphene { namespace chain {
   
@@ -257,243 +258,6 @@ bool database::check_for_blackswan( const asset_object& mia, bool enable_black_s
        return true;
     } 
     return false;
-}
-
-inline std::string Long2dt()
-{
-time_t t = time(NULL);
- struct tm *tm = localtime(&t);
- char date[20];  
- strftime(date, sizeof(date), "%d-%m-%Y %H:%M:%S", tm);
- std::string str(date);
- return str;
-}
-
-void database:: process_gravity_emission( const uint32_t& block_num )
-{
-  if( ( block_num -_last_emission_processing_time ) >= get_global_properties().parameters.emission_period )
-  {
-   std::cout << "||*********************************** processing gravity_emission ***********************************||" << std::endl;
-//***********************************************************************************************************************************************//    
-//***********************************************************************************************************************************************//    
-//***********************************************************************************************************************************************//    
-    
-    auto activity_weight = get_global_properties().parameters.activity_weight;
-    const asset_object& core = asset_id_type(0)(*this);
-    const asset_dynamic_data_object& core_dd = core.dynamic_asset_data_id(*this);  
-
-   _emission_parameters = _emission.get_parameters();
-
-   _emission_parameters.emission_scale = get_global_properties().parameters.emission_scale * GRAPHENE_BLOCKCHAIN_PRECISION;
-   _emission_parameters.delay_koefficient = get_global_properties().parameters.delay_koefficient;
-   _emission_parameters.year_emission_limit = get_global_properties().parameters.year_emission_limit;
-   
-   _emission_parameters.emission_event_count_per_year = (3600 * 24 * 365) / (get_global_properties().parameters.emission_period * get_global_properties().parameters.block_interval);
-
-   _emission.set_parameters( _emission_parameters );
-  
-//***********************************************************************************************************************************************//    
-//***********************************************************************************************************************************************//    
-//***********************************************************************************************************************************************//    
-  _last_emission_processing_time = block_num;
-  
-   uint32_t current_activity = _activity_period.get_activity( );
-
-   auto current_emission = _emission.calculate( get_global_properties().parameters.current_emission_volume, _activity_period );
-   _emission_state = _emission.get_emission_state();
-   
-   if( current_activity > _last_peak_activity )
-      _last_peak_activity = current_activity;
-    
-   share_type distributed_current_emission(0);
-  
-//***********************************************************************************************************************************************//    
-//***********************************************************************************************************************************************//    
-//***********************************************************************************************************************************************//    
-   
-    std::ofstream ifs;
-    ifs.open( "emission.log", std::ofstream::app );
-    if( ifs.is_open( ) )
-      ifs << "--------------- emission started at " << Long2dt() << std::endl;
-    ifs << "block_num = " << block_num << std::endl;
-     
-    ifs << "emission_period = " << get_global_properties().parameters.emission_period << std::endl;
-    ifs << "emission_koefficient = " << get_global_properties().parameters.emission_koefficient << std::endl;
-    ifs << "activity_weight = " << activity_weight << std::endl;
-  
-    ifs << "year_emission_limit = " << _emission_parameters.year_emission_limit << std::endl;
-    ifs << "emission_scale = " << _emission_parameters.emission_scale << std::endl;
-    ifs << "emission_event_count_per_year = " << _emission_parameters.emission_event_count_per_year << std::endl;
-  
-    ifs << "--end of parameters--" << std::endl;
-     
-    ifs << "current_activity = " << current_activity <<  std::endl;
-    ifs << "last_peak_activity = " << std::to_string( _last_peak_activity ) << std::endl;
-    ifs << "current_supply = " << std::to_string( core_dd.current_supply.value ) << std::endl;
-    ifs << "current_emission = " << current_emission << std::endl;
-  
-    ifs << "name;balance;balance_share;activity;importance;emission" << std::endl;
-
-    const auto& account_idx = get_index_type<account_index>().indices().get<by_name>();
-    for( auto account = account_idx.begin(); account != account_idx.end(); account++ )
-    {
-        auto& balance_index = get_index_type<account_balance_index>().indices().get<by_account_asset>();
-        auto itr = balance_index.find( boost::make_tuple( account->id, asset_id_type(0)) );
-        if( itr != balance_index.end() )
-        {
-          singularity::gravity_index_calculator gic( activity_weight, core_dd.current_supply.value);
-          double e = gic.calculate_index(itr->balance.value, account->activity_index) * current_emission;
-
-          if( ifs.is_open( ) )
-          {
-            ifs << account->name << ";"
-                << std::to_string( itr->balance.value ) << ";"
-                << std::to_string( itr->balance.value / core_dd.current_supply.value ) << ";"
-                << account->activity_index << ";"
-                << std::to_string( itr->balance.value / core_dd.current_supply.value * ( 1 - activity_weight ) + account->activity_index * activity_weight ) << ";"
-                << std::to_string( e ) << std::endl;
-          }
-           
-          distributed_current_emission += e;
-  
-// TODO: keep general rating for every account in account property 
-          adjust_balance( account->id, asset( e, asset_id_type(0) ) );    
-          modify( *account, [&]( account_object& obj )
-          {
-             obj.emission_volume = e;
-          });
-        }
-    }
-
-    ifs << "--------------- emission ended at   " << Long2dt() << std::endl;
-    if( ifs.is_open( ) )
-      ifs.close( );
-
-  
-//***********************************************************************************************************************************************//    
-//***********************************************************************************************************************************************//    
-//***********************************************************************************************************************************************//    
-  
-    modify( core_dd, [&]( asset_dynamic_data_object& obj )
-    {
-        obj.current_supply += distributed_current_emission;
-    });
-
-    modify( get_global_properties(), [&](global_property_object& p ) 
-    {
-        p.parameters.current_emission_volume = distributed_current_emission.value;
-    });
-  
-    _activity_period.clear();
-//***********************************************************************************************************************************************//    
-//***********************************************************************************************************************************************//    
-//***********************************************************************************************************************************************//    
-  }
-}
-   
-void database::process_poi( const uint32_t& block_num )
-{
-  std::cout << block_num << ":" << _last_activity_processing_time << "=" << block_num - _last_activity_processing_time << std::endl;
-
-  std::ofstream ifs;
-  ifs.open( "transaction.log", std::ofstream::app );
-  if( ifs.is_open( ) )
-  {
-    ifs << "--------------- transactions started at " << Long2dt() << std::endl;
-    ifs << "block_num = " << block_num << std::endl;
-    ifs << "timestamp;from;to;amount;fee" << std::endl;
-  }
-
-  const asset_object& core = asset_id_type(0)(*this);
-  std::vector<singularity::transaction_t> v;
-  for( auto it = _pending_transactions.begin(); it != _pending_transactions.end(); it++ )
-  {   
-      const account_object& from_account = get( it->second.from );
-      const account_object& to_account = get( it->second.to );
-      const asset_object& asset_type = get( it->second.amount.asset_id );
-  
-      v.push_back({ asset_type.amount_to_real( it->second.amount.amount ), 
-                      asset_type.amount_to_real( it->second.fee.amount ),
-                        from_account.name, 
-                          to_account.name,
-                          std::chrono::system_clock::to_time_t( std::chrono::system_clock::now() ), 
-                          asset_type.amount_to_real( get_balance( from_account, core ).amount ),
-                          asset_type.amount_to_real( get_balance( to_account, core ).amount ),
-                          });  
-
-      if( ifs.is_open( ) )
-      {
-            ifs << Long2dt() << ";"
-                << get( it->second.from ).name << ";"
-                << get( it->second.to ).name << ";"
-                << asset_type.amount_to_real( it->second.amount.amount ) << ";"
-                << asset_type.amount_to_real( it->second.fee.amount ) << std::endl;
-      }                                                  
-  }
-
-  if( ifs.is_open( ) )
-    ifs.close( );
-
-  _activity_parameters = _ic.get_parameters();
-  _activity_parameters.account_amount_threshold = get_global_properties().parameters.account_amount_threshold;
-  _activity_parameters.transaction_amount_threshold = get_global_properties().parameters.transaction_amount_threshold;
-  _activity_parameters.token_usd_rate = 0.1;
-  _ic.set_parameters( _activity_parameters );  
-  _ic.add_block( v );
-
-  _activity_period.add_block( v );  
-  _pending_transactions.clear();
-  
-  if( ( block_num - _last_activity_processing_time ) >= get_global_properties().parameters.activity_period )
-  {
-    std::ofstream ifs_calc;
-    ifs_calc.open("activity.log", std::ofstream::app);
-    if( ifs_calc.is_open( ) )
-    {
-      ifs_calc << "--------------- activity calculation started at " << Long2dt() << std::endl;
-      ifs_calc << "block_num = " << block_num << std::endl;
-    
-      ifs_calc << "activity_period = " << get_global_properties().parameters.activity_period << std::endl;
-      ifs_calc << "activity_weight = " << get_global_properties().parameters.activity_weight << std::endl;
-      ifs_calc << "account_amount_threshold = " << _activity_parameters.account_amount_threshold << std::endl;
-      ifs_calc << "transaction_amount_threshold = " << _activity_parameters.transaction_amount_threshold << std::endl;
-      ifs_calc << "outlink_weight = " << _activity_parameters.outlink_weight << std::endl;
-      ifs_calc << "interlevel_weight = " << _activity_parameters.interlevel_weight << std::endl;
-      ifs_calc << "clustering_m = " << _activity_parameters.clustering_m << std::endl;
-      ifs_calc << "clustering_e = " << _activity_parameters.clustering_e << std::endl;
-      ifs_calc << "decay_period = " << _activity_parameters.decay_period << std::endl;
-      ifs_calc << "decay_koefficient = " << _activity_parameters.decay_koefficient << std::endl;
-      ifs_calc << "num_threads = " << _activity_parameters.num_threads << std::endl;
-    
-      ifs_calc << "--end of parameters--" << std::endl;
-    }
-
-    auto activity_index = _ic.calculate( );
-
-    if( ifs_calc.is_open( ) )
-      ifs_calc << "name;activity_index" << std::endl;
-
-    const auto& idx = get_index_type<account_index>().indices().get<by_name>();
-    for( auto it = activity_index.begin(); it != activity_index.end(); it++ )
-    {
-      auto itr = idx.find(it->first);
-      if (itr != idx.end())
-      {
-        modify( *itr, [&it](account_object& b) 
-        {
-          b.activity_index = it->second;
-        });  
-        
-        if( ifs_calc.is_open( ) )        
-         ifs_calc << it->first << ";" << it->second << std::endl;
-      }          
-    }
-    _last_activity_processing_time = block_num;
-
-    ifs_calc << "--------------- activity calculation ended at   " << Long2dt() << std::endl;
-    if( ifs_calc.is_open( ) )
-      ifs_calc.close( );
-  }
 }
   
 void database::clear_expired_orders()
@@ -714,6 +478,439 @@ void database::update_withdraw_permissions()
    auto& permit_index = get_index_type<withdraw_permission_index>().indices().get<by_expiration>();
    while( !permit_index.empty() && permit_index.begin()->expiration <= head_block_time() )
       remove(*permit_index.begin());
+}
+
+void database::collect_block_data(const signed_block& next_block)
+{
+    uint32_t next_block_num = next_block.block_num();
+
+    //erase value for this block, to prevent influence from another fork
+    if(_block_history.find(next_block_num) != _block_history.end())
+        _block_history.erase(next_block_num);
+
+    //save the threshold settings
+    _block_history[next_block_num].transaction_amount_threshold =
+            get_global_properties().parameters.transaction_amount_threshold;
+    _block_history[next_block_num].account_amount_threshold =
+            get_global_properties().parameters.account_amount_threshold;
+    _block_history[next_block_num].token_usd_rate = 0.1;
+
+
+    //find all transfer operations
+    map<std::string, bool> processed_transactions;
+    for( const auto& trx : next_block.transactions )
+    {
+        for( int i = 0; i < trx.operations.size(); i++ )
+            if( trx.operations[i].which() == operation::tag< transfer_operation >::value )
+            {
+                auto it = processed_transactions.find( trx.id().str() );
+                if( it == processed_transactions.end() )
+                {
+                    processed_transactions[trx.id().str()] = true;
+
+                    transfer_operation tr = trx.operations[i].get<transfer_operation>();
+
+                    const asset_object& core = asset_id_type(0)(*this);
+                    const account_object& from_account = get( tr.from );
+                    const account_object& to_account = get( tr.to );
+                    const asset_object& asset_type = get( tr.amount.asset_id );
+
+                    //add the transaction in transaction_t format
+                    _block_history[next_block_num].transactions.push_back(
+                            { asset_type.amount_to_real( tr.amount.amount ),
+                              asset_type.amount_to_real( tr.fee.amount ),
+                              from_account.name,
+                              to_account.name,
+                              std::chrono::system_clock::to_time_t( std::chrono::system_clock::now() ),
+                              asset_type.amount_to_real( get_balance( from_account, core ).amount ),
+                              asset_type.amount_to_real( get_balance( to_account, core ).amount ),
+                            });
+                }
+            }
+    }
+
+    //log saved info
+    std::ofstream bi_log;
+    bi_log.open( "block_info.log", std::ofstream::app );
+
+    block_info block = _block_history[next_block_num];
+
+    bi_log << "block " << next_block_num << " params (" <<
+           block.transaction_amount_threshold << ";" <<
+           block.account_amount_threshold << ";" <<
+           block.token_usd_rate << ")" << std::endl;
+
+    for (singularity::transaction_t const& tr: block.transactions)
+    {
+        bi_log << tr.source_account << ";"
+               << tr.target_account << ";"
+               << tr.amount << ";"
+               << tr.comission << ";"
+               << tr.source_account_balance << ";"
+               << tr.target_account_balance << ";"
+               << tr.timestamp << std::endl;
+    }
+
+    bi_log.close();
+}
+
+void database::clear_old_block_history()
+{
+    std::cout << "clear_old_block_history start" << std::endl;
+    std::cout << "clear_old_block_history end" << std::endl;
+}
+
+void database:: activity_save_parameters()
+{
+    std::cout << "activity_save_parameters start" << std::endl;
+
+    _activity_parameters = singularity::parameters_t();
+    _activity_parameters.account_amount_threshold = get_global_properties().parameters.account_amount_threshold;
+    _activity_parameters.transaction_amount_threshold = get_global_properties().parameters.transaction_amount_threshold;
+    _activity_parameters.token_usd_rate = 0.1;
+
+    std::cout << "activity_save_parameters end" << std::endl;
+}
+
+singularity::account_activity_index_map_t database::async_activity_calculations(int w_start, int w_end)
+{
+    //open activity log
+    std::ofstream act_log;
+    act_log.open( "activity.log", std::ofstream::app );
+    act_log << "activity calculation started [" << w_start << "," << w_end << "]" << std::endl;
+    auto time_start = std::chrono::high_resolution_clock::now();
+
+    //create the calculator with saved parameters
+    singularity::activity_index_calculator aic(_activity_parameters);
+
+    //iterate the block history from start to end
+    for (uint32_t i = w_start; i <= w_end; i++)
+    {
+        if(i % 86400 == 0)
+            std::cout << "reading from history block " << i << std::endl;
+
+        //TODO thread safety ????
+        block_info b_info = _block_history[i];
+
+        //set threshold parameters
+        auto params = aic.get_parameters();
+        params.account_amount_threshold = b_info.account_amount_threshold;
+        params.transaction_amount_threshold = b_info.transaction_amount_threshold;
+        params.token_usd_rate = b_info.token_usd_rate;
+        aic.set_parameters(params);
+
+        //add transactions from block
+        aic.add_block(b_info.transactions);
+    }
+
+    auto blocks_completed = std::chrono::high_resolution_clock::now();
+    act_log << "blocks added in " << (blocks_completed - time_start).count() << std::endl;
+
+    //set saved parameters
+    aic.set_parameters(_activity_parameters);
+
+    //perform the calculations
+    auto result = aic.calculate( );
+
+    auto calculations_completed = std::chrono::high_resolution_clock::now();
+    act_log << "calculations completed in " << (calculations_completed - blocks_completed).count() << std::endl;
+    act_log.close();
+
+    return result;
+}
+
+void database::activity_start_async(int window_start_block, int window_end_block)
+{
+    std::cout << "activity_start_async start" << std::endl;
+    std::cout << "activity window [" << window_start_block << ", "
+                                     << window_end_block << "]" << std::endl;
+
+    //don't start calculation if it is already running
+    if(_activity_calculation_is_running)
+    {
+        std::cout << "activity calculation is already running" << std::endl;
+        return;
+    }
+
+    _future_activity_index = std::async(
+            std::launch::async,
+            [&](int w_start, int w_end){
+                return async_activity_calculations(w_start, w_end);
+               },
+            window_start_block,
+            window_end_block);
+
+    //mark calculation as running
+    _activity_calculation_is_running = true;
+
+    std::cout << "activity_start_async end" << std::endl;
+}
+
+void database::activity_save_results()
+{
+    std::cout << "activity_save_results start" << std::endl;
+
+    //get results from future only if calculation is marked as running
+    if(_activity_calculation_is_running)
+    {
+        //wait for results until they are ready
+        if (_future_activity_index.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+            std::cout << "calculating activity index ..." << std::endl;
+        }
+
+        //get the result from async
+        _activity_index = _future_activity_index.get();
+
+        //mark the calculation as not running
+        _activity_calculation_is_running = false;
+    }
+
+    //open activity log
+    std::ofstream act_log;
+    act_log.open( "activity.log", std::ofstream::app );
+    act_log << "started saving results" << std::endl;
+    auto time_start = std::chrono::high_resolution_clock::now();
+
+    //loop through all accounts
+    const auto& idx = get_index_type<account_index>().indices().get<by_name>();
+    for( auto itr = idx.begin( ); itr != idx.end( ); itr++ )
+    {
+        //set account activity_index if we find the value
+        auto ai_result = _activity_index.find(itr->name);
+        if(ai_result != _activity_index.end())
+        {
+            modify( *itr, [&ai_result]( account_object& a )
+            {
+                a.activity_index = ai_result->second;
+            });
+            act_log << itr->name << ";" << ai_result->second << std::endl;
+        }
+        //set it to zero if we cannot find the value
+        else
+        {
+            modify(*itr, [&ai_result](account_object &a)
+            {
+                a.activity_index = 0;
+            });
+        }
+    }
+
+    auto time_end = std::chrono::high_resolution_clock::now();
+    act_log << "saving results completed in " << (time_end - time_start).count() << std::endl;
+    act_log.close();
+
+    std::cout << "activity_save_results end" << std::endl;
+}
+
+void database::emission_save_parameters()
+{
+    std::cout << "emission_save_parameters start" << std::endl;
+
+    //save emission parameters
+    _emission_parameters = singularity::emission_parameters_t();
+    _emission_parameters.emission_scale = get_global_properties().parameters.emission_scale * GRAPHENE_BLOCKCHAIN_PRECISION;
+    _emission_parameters.delay_koefficient = get_global_properties().parameters.delay_koefficient;
+    _emission_parameters.year_emission_limit = get_global_properties().parameters.year_emission_limit;
+    _emission_parameters.emission_event_count_per_year = (3600 * 24 * 365) / (get_global_properties().parameters.emission_period * get_global_properties().parameters.block_interval);
+
+    //save activity weight
+    _activity_weight_snapshot = get_global_properties().parameters.activity_weight;
+
+    //save all balances
+    std::ofstream act_log;
+    act_log.open( "emission_balances.log", std::ofstream::app );
+    act_log << "saving emission balances" << std::endl;
+    _balances_snapshot.clear();
+    const auto& account_idx = get_index_type<account_index>().indices().get<by_name>();
+    for( auto account = account_idx.begin(); account != account_idx.end(); account++ )
+    {
+        auto& balance_index = get_index_type<account_balance_index>().indices().get<by_account_asset>();
+        auto itr = balance_index.find( boost::make_tuple( account->id, asset_id_type(0)) );
+        if( itr != balance_index.end() )
+        {
+            _balances_snapshot[account->name] = itr->balance.value;
+            act_log << account->name << ";" << _balances_snapshot[account->name] << std::endl;
+        }
+    }
+
+    //save current supply
+    const asset_object& core = asset_id_type(0)(*this);
+    const asset_dynamic_data_object& core_dd = core.dynamic_asset_data_id(*this);
+    _current_supply_snapshot = core_dd.current_supply.value;
+    act_log << "core asset current supply = " << _current_supply_snapshot << std::endl;
+
+    std::cout << "emission_save_parameters end" << std::endl;
+}
+
+uint64_t database::async_emission_calculations(int w_start, int w_end)
+{
+    //open emission log
+    std::ofstream em_log;
+    em_log.open( "emission.log", std::ofstream::app );
+    em_log << "emission calculation started [" << w_start << "," << w_end << "]" << std::endl;
+    auto time_start = std::chrono::high_resolution_clock::now();
+
+    //iterate the block history from start to end
+    for (uint32_t i = w_start; i <= w_end; i++)
+    {
+        //TODO thread safety ????
+        block_info b_info = _block_history[i];
+
+        //add transactions from block
+        _activity_period.add_block(b_info.transactions);
+    }
+
+    auto blocks_completed = std::chrono::high_resolution_clock::now();
+    em_log << "blocks added in " << (blocks_completed - time_start).count() << std::endl;
+
+    //calculate network activity for the period
+    uint32_t current_activity = _activity_period.get_activity( );
+    em_log << "last peak activity = " << _last_peak_activity << std::endl;
+    em_log << "current activity = " << current_activity << std::endl;
+
+    auto activity_completed = std::chrono::high_resolution_clock::now();
+    em_log << "activity for the period calculated in " << (activity_completed - blocks_completed).count() << std::endl;
+
+    //set saved parameters
+    _emission.set_parameters(_emission_parameters);
+
+    //calculate the total emission
+    auto emission_value = _emission.calculate( get_global_properties().parameters.current_emission_volume, _activity_period );
+    em_log << "emission value = " << emission_value << std::endl;
+
+    //save the emission state
+    _emission_state = _emission.get_emission_state();
+
+    //update the last peak activity
+    if( current_activity > _last_peak_activity )
+        _last_peak_activity = current_activity;
+
+    //clear current activity period
+    _activity_period.clear();
+
+    auto emission_completed = std::chrono::high_resolution_clock::now();
+    em_log << "emission for the period calculated in " << (emission_completed - activity_completed).count() << std::endl;
+    em_log.close();
+
+    return emission_value;
+}
+
+void database::emission_start_async(int window_start_block, int window_end_block)
+{
+    std::cout << "emission_start_async start" << std::endl;
+    std::cout << "emission window [" << window_start_block << ", "
+                                     << window_end_block << "]" << std::endl;
+
+    //don't start calculation if it is already running
+    if(_emission_calculation_is_running)
+    {
+        std::cout << "emission calculation is already running" << std::endl;
+        return;
+    }
+
+    _future_emission_value = std::async(
+            std::launch::async,
+            [&](int w_start, int w_end){
+                return async_emission_calculations(w_start, w_end);
+               },
+            window_start_block,
+            window_end_block);
+
+    //mark calculation as running
+    _emission_calculation_is_running = true;
+
+    std::cout << "emission_start_async end" << std::endl;
+}
+
+void database::emission_save_results()
+{
+    std::cout << "emission_save_results start" << std::endl;
+
+    //get results from future only if calculation is marked as running
+    if(_emission_calculation_is_running)
+    {
+        //wait for results until they are ready
+        if (_future_emission_value.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+            std::cout << "calculating emission ..." << std::endl;
+        }
+
+        //get the result from async
+        _emission_value = _future_emission_value.get();
+
+        //mark the calculation as not running
+        _emission_calculation_is_running = false;
+    }
+
+    //open emission log
+    std::ofstream em_log;
+    em_log.open( "emission.log", std::ofstream::app );
+    em_log << "started saving results" << std::endl;
+    auto time_start = std::chrono::high_resolution_clock::now();
+
+    //prepare gravity index calculator
+    singularity::gravity_index_calculator gic( _activity_weight_snapshot, _current_supply_snapshot);
+
+    //loop through all accounts
+    share_type distributed_current_emission(0);
+    const auto& account_idx = get_index_type<account_index>().indices().get<by_name>();
+    for( auto account = account_idx.begin(); account != account_idx.end(); account++ )
+    {
+        //calculate and set the emission value if we find the balance in the snapshot
+        auto account_balance = _balances_snapshot.find(account->name);
+        if(account_balance != _balances_snapshot.end())
+        {
+            //calculate account emission from the gravity index
+            double acc_emission = gic.calculate_index(account_balance->second, account->activity_index) * _emission_value;
+
+            //increment distributed emission
+            distributed_current_emission += acc_emission;
+
+
+            //adjust the balance and set "emission" property
+            adjust_balance( account->id, asset( acc_emission, asset_id_type(0) ) );
+            modify( *account, [&]( account_object& obj )
+            {
+                obj.emission_volume = acc_emission;
+            });
+
+            //save entry to log
+            em_log << account->name << ";" <<
+                std::to_string( account_balance->second ) << ";" <<
+                std::to_string( account_balance->second / _current_supply_snapshot ) << ";" <<
+                account->activity_index << ";" <<
+                std::to_string( account_balance->second / _current_supply_snapshot * ( 1 - _activity_weight_snapshot ) +
+                                account->activity_index * _activity_weight_snapshot ) << ";" <<
+                std::to_string( acc_emission ) << std::endl;
+        }
+        //set emission to zero if there is no balance in the snapshot
+        else
+        {
+            modify( *account, [&]( account_object& obj )
+            {
+                obj.emission_volume = 0;
+            });
+        }
+    }
+
+    //increase current_supply value
+    const asset_object& core = asset_id_type(0)(*this);
+    const asset_dynamic_data_object& core_dd = core.dynamic_asset_data_id(*this);
+    modify( core_dd, [&]( asset_dynamic_data_object& obj )
+    {
+        obj.current_supply += distributed_current_emission;
+    });
+
+    //update current_emission_volume
+    modify( get_global_properties(), [&](global_property_object& p )
+    {
+        p.parameters.current_emission_volume = distributed_current_emission.value;
+    });
+
+    auto time_end = std::chrono::high_resolution_clock::now();
+    em_log << "saving results completed in " << (time_end - time_start).count() << std::endl;
+    em_log.close();
+
+    std::cout << "emission_save_results end" << std::endl;
 }
   
 } }
