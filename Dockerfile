@@ -1,5 +1,5 @@
 FROM phusion/baseimage:0.9.19
-MAINTAINER graphenelab
+MAINTAINER gravityprotocol
 
 ENV LANG=en_US.UTF-8
 
