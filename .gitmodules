@@ -6,3 +6,6 @@
     path = libraries/fc
     url = https://github.com/bitshares/bitshares-fc.git
     ignore = dirty
+[submodule "libraries/singularity"]
+	path = libraries/singularity
+	url = https://github.com/GravityProtocol/singularity
